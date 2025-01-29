@@ -1,13 +1,14 @@
 use anchor_lang::prelude::*;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("izmYTzv6KBxCLTjcPqVgJGbrkAz82oTX5tsyKu6CDwQ");
 
 #[program]
-pub mod voting_system {
+pub mod voting_sys {
     use super::*;
 
     pub fn create_election(ctx: Context<CreateElection>, total_votes: u64, total_candidates: u64) -> Result<()> {
         let election = &mut ctx.accounts.election_data;
+        
         election.stage = ElectionStage::Application;
         election.initiator = ctx.accounts.signer.key();
         election.total_votes = total_votes;
