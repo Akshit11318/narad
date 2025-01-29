@@ -72,7 +72,7 @@ pub mod voting_system {
         Ok(())
     }
 
-    pub fn vote(ctx: Context<Vote>, voter_id: String) -> Result<()> {
+    pub fn vote(ctx: Context<Vote>, voter_id: String, candidate_name: String) -> Result<()> {
         let candidate = &mut ctx.accounts.candidate_data;
         let election = &mut ctx.accounts.election_data;
         let voter = &mut ctx.accounts.voter_data;
@@ -89,12 +89,12 @@ pub mod voting_system {
 }
 
 #[derive(Accounts)]
-#[instruction(total_votes: u64,total_candidates: u64)]
+#[instruction(total_votes: u64, total_candidates: u64)]  // Changed from usize to u64
 pub struct CreateElection<'info> {
     #[account(
         init,
         payer = signer,
-        space = 8 + 1 + 32 + 8 + (4 + 32 * total_votes) + (4 + 32 * total_candidates)
+        space = 8 + 1 + 32 + 8 + (4 + 32 * total_votes as usize) + (4 + 32 * total_candidates as usize)
     )]
     pub election_data: Account<'info, ElectionData>,
     #[account(mut)]
@@ -135,14 +135,18 @@ pub struct RegisterCandidate<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(voter_id: String)]
+#[instruction(voter_id: String, candidate_name: String)]
 pub struct Vote<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"candidate", election_data.key().as_ref(), candidate_name.as_bytes()],
+        bump
+    )]
     pub candidate_data: Account<'info, CandidateData>,
     #[account(mut)]
     pub election_data: Account<'info, ElectionData>,
     #[account(
-        init_if_needed,
+        init,
         payer = signer,
         space = 8 + VoterData::MAX_SIZE,
         seeds = [b"voter", election_data.key().as_ref(), voter_id.as_bytes()],
