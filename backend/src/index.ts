@@ -7,12 +7,17 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";
 import { VotingSys } from "./types/voting_sys";
+import authRouter from "./routes/auth";
+import { auth } from "./middleware/auth";
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Use auth routes
+app.use("/auth", authRouter);
 
 // Default wallet configuration from Anchor.toml
 const defaultWalletPath = path.resolve(
@@ -194,9 +199,14 @@ app.post("/change-stage", async (req, res) => {
 });
 
 // Cast vote
-app.post("/vote", async (req, res) => {
+app.post("/vote", auth, async (req, res) => {
   try {
-    const { electionId, voterId, candidateName } = req.body;
+    const { electionId, candidateName } = req.body;
+    const voterId = req.user?.email; // Use email from JWT token as voterId
+
+    if (!voterId) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
     const electionPubkey = new PublicKey(electionId);
 
     const [voterAccount] = PublicKey.findProgramAddressSync(
@@ -239,6 +249,24 @@ app.get("/election/:electionId", async (req, res) => {
       new PublicKey(req.params.electionId)
     );
     res.json(electionAccount);
+  } catch (error) {
+    res.status(500).json({
+      error:
+        error instanceof Error ? error.message : "An unknown error occurred",
+    });
+  }
+});
+
+// Get candidate whitelist
+app.get("/election/:electionId/candidates", auth, async (req, res) => {
+  try {
+    const electionAccount = await program.account.electionData.fetch(
+      new PublicKey(req.params.electionId)
+    );
+    res.json({
+      success: true,
+      candidates: electionAccount.candidateWhitelist,
+    });
   } catch (error) {
     res.status(500).json({
       error:
