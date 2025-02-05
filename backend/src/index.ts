@@ -9,6 +9,7 @@ import path from "path";
 import { VotingSys } from "./types/voting_sys";
 import authRouter from "./routes/auth";
 import { auth } from "./middleware/auth";
+import idl from "./voting_sys.json";
 
 dotenv.config();
 
@@ -38,7 +39,7 @@ let provider = new anchor.AnchorProvider(
 anchor.setProvider(provider);
 
 let program = new anchor.Program(
-  require("voting_sys.json") as VotingSys,
+  idl as VotingSys,
   // Convert string to PublicKey
   provider
 ) as Program<VotingSys>;
@@ -264,7 +265,7 @@ app.get("/election/:electionId/candidates", auth, async (req, res) => {
       new PublicKey(req.params.electionId)
     );
     res.json({
-      success: true,
+      stage: electionAccount.stage,
       candidates: electionAccount.candidateWhitelist,
     });
   } catch (error) {
