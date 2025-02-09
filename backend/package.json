@@ -1,31 +1,37 @@
 {
-  "name": "voting-sys-backend",
-  "version": "1.0.0",
-  "description": "Express backend for Solana voting system",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts"
-  },
-  "dependencies": {
-    "@coral-xyz/anchor": "^0.30.0",
-    "@solana/web3.js": "^1.87.6",
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "@prisma/client": "^5.7.0",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2"
-  },
-  "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/cors": "^2.8.17",
-    "@types/node": "^20.10.4",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.5",
-    "prisma": "^5.7.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.3.3"
-  }
+    "name": "voting-sys-backend",
+    "version": "1.0.0",
+    "description": "Express backend for Solana voting system",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+        "prisma:generate": "prisma generate",
+        "prisma:migrate": "prisma migrate deploy",
+        "prisma:init": "NODE_PATH=./src ts-node -P tsconfig.json src/scripts/initDb.ts",
+        "db:setup": "npm run prisma:generate && npm run prisma:migrate && npm run prisma:init"
+    },
+    "dependencies": {
+        "@coral-xyz/anchor": "^0.30.0",
+        "@prisma/client": "^5.7.0",
+        "@solana/web3.js": "^1.87.6",
+        "bcryptjs": "^2.4.3",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.7",
+        "express": "^4.18.2",
+        "jsonwebtoken": "^9.0.2"
+    },
+    "devDependencies": {
+        "@types/bcryptjs": "^2.4.6",
+        "@types/bs58": "^4.0.4",
+        "@types/cors": "^2.8.17",
+        "@types/express": "^4.17.21",
+        "@types/jsonwebtoken": "^9.0.5",
+        "@types/node": "^18.0.0",
+        "prisma": "^5.7.0",
+        "ts-node": "^10.9.1",
+        "ts-node-dev": "^2.0.0",
+        "typescript": "^4.9.5"
+    }
 }
