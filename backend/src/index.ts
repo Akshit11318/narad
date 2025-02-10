@@ -10,7 +10,7 @@ import { VotingSys } from "./types/voting_sys";
 import authRouter from "./routes/auth";
 import { auth, requireManager } from "./middleware/auth";
 import idl from "./voting_sys.json";
-import bs58 from "bs58";
+// import bs58 from "bs58";
 
 // Configure dotenv before other code
 dotenv.config();
@@ -70,6 +70,27 @@ app.post("/create-election", auth, requireManager, async (req, res) => {
     });
   }
 });
+
+
+app.get("/election/current", async (_req, res) => {
+  try {
+    const elections = await program.account.electionData.all();
+    console.log(elections);
+    if (elections.length === 0) {
+      return res.status(404).json({ error: "No active election found" });
+    }
+    
+    return res.json({
+      id: elections[0].publicKey.toString(),
+      publicKey: elections[0].publicKey.toString(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : "An unknown error occurred"
+    });
+  }
+});
+
 
 app.post("/add-voter", auth, requireManager, async (req, res) => {
   try {
@@ -241,33 +262,33 @@ app.get("/candidate/:electionId/:candidateName", async (req, res) => {
   }
 });
 
-// Get current active election
-app.get("/election/current", auth, async (_req, res) => {
-  try {
-    // Find election in "voting" stage
-    const elections = await program.account.electionData.all([
-      {
-        memcmp: {
-          offset: 0, // Adjust based on your struct layout
-          bytes: bs58.encode(Buffer.from([1])) // Assuming 1 represents voting stage
-        }
-      }
-    ]);
+// // Get current active election
+// app.get("/election/current", auth, async (_req, res) => {
+//   try {
+//     // Find election in "voting" stage
+//     const elections = await program.account.electionData.all([
+//       {
+//         memcmp: {
+//           offset: 0, // Adjust based on your struct layout
+//           bytes: bs58.encode(Buffer.from([1])) // Assuming 1 represents voting stage
+//         }
+//       }
+//     ]);
     
-    if (elections.length === 0) {
-      return res.status(404).json({ error: "No active election found" });
-    }
+//     if (elections.length === 0) {
+//       return res.status(404).json({ error: "No active election found" });
+//     }
     
-    return res.json({
-      id: elections[0].publicKey.toString(),
-      ...elections[0].account
-    });
-  } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : "An unknown error occurred"
-    });
-  }
-});
+//     return res.json({
+//       id: elections[0].publicKey.toString(),
+//       ...elections[0].account
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       error: error instanceof Error ? error.message : "An unknown error occurred"
+//     });
+//   }
+// });
 
 // Check voter status
 app.get("/voter/status/:electionId", auth, async (req, res) => {
@@ -296,6 +317,9 @@ app.get("/voter/status/:electionId", auth, async (req, res) => {
     });
   }
 });
+
+
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

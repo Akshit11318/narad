@@ -26,7 +26,7 @@ const VoterSignup = () => {
       const { token } = response.data;
       localStorage.setItem('token', token);
       toast.success('Registration successful!');
-      navigate('/voter');
+      navigate('/voter/dashboard');
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Failed to register';
       toast.error(errorMessage);

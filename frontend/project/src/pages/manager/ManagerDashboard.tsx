@@ -38,6 +38,24 @@ const ManagerDashboard: React.FC = () => {
       dispatch(fetchCandidates(currentElection.id));
     }
   }, [dispatch, currentElection?.id]);
+
+  useEffect(() => {
+    const fetchCurrentElection = async () => {
+      if (currentElection?.id) {
+        try {
+          await api.get(`/election/${currentElection.id}`);
+          dispatch(fetchElection(currentElection.id));
+        } catch (error) {
+          console.error('Failed to fetch election details:', error);
+        }
+      }
+    };
+
+    fetchCurrentElection();
+    const interval = setInterval(fetchCurrentElection, 5000); // Poll every 5 seconds
+    
+    return () => clearInterval(interval);
+  }, [currentElection?.id, dispatch]);
   
   const handleCreateElection = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,26 +112,23 @@ const ManagerDashboard: React.FC = () => {
 
   const handleChangeStage = async (stage: 'application' | 'voting' | 'closed') => {
     if (!currentElection) return;
-
-    // Prevent backward stage movement
-    const stages = ['application', 'voting', 'closed'];
-    const currentIndex = stages.indexOf(currentElection.stage);
-    const newIndex = stages.indexOf(stage);
     
-    if (newIndex < currentIndex) {
-      toast.error('Cannot move back to previous stages');
-      return;
-    }
-
     try {
       await api.post('/change-stage', {
         electionId: currentElection.id,
         stage,
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('managerToken')}`
+        }
       });
-      toast.success(`Election stage changed to ${stage}`);
+      
+      // Immediately fetch updated election data
+      await api.get(`/election/${currentElection.id}`);
       dispatch(fetchElection(currentElection.id));
-    } catch (error) {
-      toast.error('Failed to change election stage');
+      toast.success(`Election stage changed to ${stage}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to change election stage');
     }
   };
 

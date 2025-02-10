@@ -1,135 +1,128 @@
 import React, { useEffect, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { Check, AlertTriangle } from 'lucide-react';
-import { fetchElection, fetchCandidates } from '../../store/slices/electionSlice';
-import { RootState, AppDispatch } from '../../store';
-// import axios from 'axios';
-import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/axios';
+import toast from 'react-hot-toast';
+
+interface Candidate {
+  name: string;
+  votes: number;
+}
 
 const VoterDashboard: React.FC = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const { currentElection, candidates, isLoading } = useSelector((state: RootState) => state.election);
-  // const { user } = useSelector((state: RootState) => state.auth);
+  const navigate = useNavigate();
+  const [electionId, setElectionId] = useState<string | null>(null);
+  const [electionStage, setElectionStage] = useState<string>('');
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState('');
   const [hasVoted, setHasVoted] = useState(false);
+  const [loading, setLoading] = useState(true);
 
+  // Instead of reading electionId from local storage, fetch it (with stage) from backend.
   useEffect(() => {
     const fetchCurrentElection = async () => {
       try {
-        const response = await api.get('/election/current');
-        if (response.data) {
-          dispatch(fetchElection(response.data.id));
-          dispatch(fetchCandidates(response.data.id));
-          // Check if voter has already voted
-          const voteStatus = await api.get(`/voter/status/${response.data.id}`);
-          setHasVoted(voteStatus.data.hasVoted);
-        }
-      } catch (error) {
-        toast.error('Failed to fetch election details');
+        // This endpoint should return { electionId, stage } for the current election.
+        const res = await api.get('/election/current');
+        const { electionId: fetchedElectionId, stage } = res.data;
+        setElectionId(fetchedElectionId);
+        setElectionStage(stage);
+
+        // Fetch candidates using the election's public key.
+        const candidateRes = await api.get(`/election/${fetchedElectionId}/candidates`);
+        // Assuming candidateRes.data.candidates is an array of candidate objects or names.
+        setCandidates(candidateRes.data.candidates);
+      } catch (error: any) {
+        toast.error(error.response?.data?.error || 'Failed to fetch election data');
+      } finally {
+        setLoading(false);
       }
     };
+
     fetchCurrentElection();
-  }, [dispatch]);
+  }, [navigate]);
 
   const handleVote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentElection || !selectedCandidate) return;
+    if (!electionId || !selectedCandidate) {
+      toast.error('Please select a candidate.');
+      return;
+    }
 
     try {
       await api.post('/vote', {
-        electionId: currentElection.id,
+        electionId,
         candidateName: selectedCandidate,
       });
       toast.success('Vote cast successfully!');
       setHasVoted(true);
+      // Log out the voter after voting.
+      setTimeout(() => {
+        localStorage.removeItem('token'); // Clear any stored JWT, if applicable.
+        navigate('/login', { replace: true });
+      }, 3000);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to cast vote';
-      toast.error(errorMessage);
+      toast.error(error.response?.data?.error || 'Vote failed');
     }
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="flex justify-center items-center h-screen">
+        Loading election details...
       </div>
     );
   }
 
-  if (!currentElection) {
+  // If the election stage is not voting, show a message.
+  if (electionStage !== 'voting') {
     return (
-      <div className="text-center py-12">
-        <AlertTriangle className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
-        <h2 className="text-2xl font-bold mb-2">No Active Election</h2>
-        <p className="text-gray-400">Please wait for an election to be created.</p>
+      <div className="flex flex-col justify-center items-center h-screen">
+        <h2>Voting is not active currently.</h2>
       </div>
     );
   }
 
   if (hasVoted) {
     return (
-      <div className="text-center py-12">
-        <Check className="mx-auto h-12 w-12 text-green-500 mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Vote Cast Successfully!</h2>
-        <p className="text-gray-400">Thank you for participating in the election.</p>
+      <div className="flex flex-col justify-center items-center h-screen">
+        <h2 className="mb-4">Thank you for voting!</h2>
+        <p>You will be logged out shortly.</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-gray-800 rounded-lg shadow-lg p-6">
-        <h2 className="text-2xl font-bold mb-6">Cast Your Vote</h2>
-        
-        <div className="mb-6">
-          <p className="text-gray-400 mb-2">Election Stage:</p>
-          <p className="text-lg font-semibold capitalize">{currentElection.stage}</p>
-        </div>
-
-        {currentElection.stage === 'voting' ? (
-          <form onSubmit={handleVote} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Select a Candidate</label>
-              <div className="space-y-2">
-                {candidates.map((candidate) => (
-                  <label
-                    key={candidate.name}
-                    className="flex items-center p-4 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors"
-                  >
-                    <input
-                      type="radio"
-                      name="candidate"
-                      value={candidate.name}
-                      checked={selectedCandidate === candidate.name}
-                      onChange={(e) => setSelectedCandidate(e.target.value)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-500"
-                    />
-                    <span className="ml-3">{candidate.name}</span>
-                  </label>
-                ))}
+    <div className="max-w-md mx-auto p-4">
+      <h2 className="text-2xl mb-4">Cast Your Vote</h2>
+      <form onSubmit={handleVote}>
+        <div className="mb-4">
+          {candidates.map((candidate: Candidate | string) => {
+            // Handle candidate as either an object or a simple string.
+            const candidateName = typeof candidate === 'string' ? candidate : candidate.name;
+            return (
+              <div key={candidateName} className="mb-2">
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="candidate"
+                    value={candidateName}
+                    checked={selectedCandidate === candidateName}
+                    onChange={(e) => setSelectedCandidate(e.target.value)}
+                    className="mr-2"
+                  />
+                  {candidateName}
+                </label>
               </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={!selectedCandidate}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
-            >
-              Cast Vote
-            </button>
-          </form>
-        ) : (
-          <div className="text-center py-8">
-            <AlertTriangle className="mx-auto h-8 w-8 text-yellow-500 mb-4" />
-            <p className="text-gray-400">
-              {currentElection.stage === 'application'
-                ? 'Voting has not started yet. Please wait for the voting stage.'
-                : 'Voting has ended. Results will be announced soon.'}
-            </p>
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+        <button
+          type="submit"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded"
+        >
+          Vote
+        </button>
+      </form>
     </div>
   );
 };

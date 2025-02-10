@@ -1,4 +1,3 @@
-// import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { store } from './store';
@@ -9,12 +8,6 @@ import Login from './pages/Login';
 import VoterDashboard from './pages/voter/VoterDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import VoterSignup from './components/VoterSignup';
-
-// Protected Route component
-// const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode, requiredRole?: string }) => {
-//   const isAuthenticated = localStorage.getItem('managerToken');
-//   return isAuthenticated ? <>{children}</> : <Navigate to="/manager/login" />;
-// };
 
 function App() {
   return (
@@ -29,7 +22,7 @@ function App() {
             <Route 
               path="/manager/dashboard" 
               element={
-                <ProtectedRoute requiredRole="manager">
+                <ProtectedRoute role="manager">
                   <ManagerDashboard />
                 </ProtectedRoute>
               } 
@@ -37,7 +30,7 @@ function App() {
             <Route
               path="/voter/dashboard"
               element={
-                <ProtectedRoute requiredRole="voter">
+                <ProtectedRoute role="voter">
                   <VoterDashboard />
                 </ProtectedRoute>
               }

@@ -5,7 +5,7 @@ import { Lock, Mail } from 'lucide-react';
 import { login } from '../store/slices/authSlice';
 import { AppDispatch } from '../store';
 import toast from 'react-hot-toast';
-import jwtDecode from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 import { api } from '../api/axios';
 
 interface DecodedToken {
@@ -38,8 +38,9 @@ const Login: React.FC = () => {
       
       if (decodedToken.role === 'voter') {
         localStorage.setItem('token', token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         dispatch(login({ email, password }));
-        navigate('/voter/dashboard');
+        navigate('/voter/dashboard', { replace: true });
       } else {
         throw new Error('Invalid account type');
       }
