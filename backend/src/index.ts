@@ -66,11 +66,11 @@ app.post("/create-election", auth, requireManager, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      error: error instanceof Error ? error.message : "An unknown error occurred",
+      error:
+        error instanceof Error ? error.message : "An unknown error occurred",
     });
   }
 });
-
 
 app.get("/election/current", async (_req, res) => {
   try {
@@ -79,18 +79,18 @@ app.get("/election/current", async (_req, res) => {
     if (elections.length === 0) {
       return res.status(404).json({ error: "No active election found" });
     }
-    
+
     return res.json({
       id: elections[0].publicKey.toString(),
       publicKey: elections[0].publicKey.toString(),
     });
   } catch (error) {
     return res.status(500).json({
-      error: error instanceof Error ? error.message : "An unknown error occurred"
+      error:
+        error instanceof Error ? error.message : "An unknown error occurred",
     });
   }
 });
-
 
 app.post("/add-voter", auth, requireManager, async (req, res) => {
   try {
@@ -106,7 +106,8 @@ app.post("/add-voter", auth, requireManager, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({
-      error: error instanceof Error ? error.message : "An unknown error occurred",
+      error:
+        error instanceof Error ? error.message : "An unknown error occurred",
     });
   }
 });
@@ -125,7 +126,37 @@ app.post("/add-candidate", auth, requireManager, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({
-      error: error instanceof Error ? error.message : "An unknown error occurred",
+      error:
+        error instanceof Error ? error.message : "An unknown error occurred",
+    });
+  }
+});
+
+app.post("/register-candidate", async (req, res) => {
+  try {
+    const { electionId, candidateName } = req.body;
+    const electionPubkey = new PublicKey(electionId);
+    const [candidateAccount] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("candidate"),
+        electionPubkey.toBuffer(),
+        Buffer.from(candidateName),
+      ],
+      program.programId
+    );
+    await program.methods
+      .registerCandidate(candidateName)
+      .accounts({
+        candidateData: candidateAccount,
+        electionData: electionPubkey,
+        initiator: provider.wallet.publicKey,
+      } as any)
+      .rpc();
+    res.json({ success: true, candidateAccount: candidateAccount.toString() });
+  } catch (error) {
+    res.status(500).json({
+      error:
+        error instanceof Error ? error.message : "An unknown error occurred",
     });
   }
 });
@@ -154,7 +185,8 @@ app.post("/change-stage", auth, requireManager, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({
-      error: error instanceof Error ? error.message : "An unknown error occurred",
+      error:
+        error instanceof Error ? error.message : "An unknown error occurred",
     });
   }
 });
@@ -210,6 +242,7 @@ app.get("/election/:electionId", async (req, res) => {
     );
     res.json(electionAccount);
   } catch (error) {
+    console.log(error);
     res.status(500).json({
       error:
         error instanceof Error ? error.message : "An unknown error occurred",
@@ -274,11 +307,11 @@ app.get("/candidate/:electionId/:candidateName", async (req, res) => {
 //         }
 //       }
 //     ]);
-    
+
 //     if (elections.length === 0) {
 //       return res.status(404).json({ error: "No active election found" });
 //     }
-    
+
 //     return res.json({
 //       id: elections[0].publicKey.toString(),
 //       ...elections[0].account
@@ -295,13 +328,17 @@ app.get("/voter/status/:electionId", auth, async (req, res) => {
   try {
     const { electionId } = req.params;
     const voterId = req.user?.email;
-    
+
     if (!voterId) {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
     const [voterAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from("voter"), new PublicKey(electionId).toBuffer(), Buffer.from(voterId)],
+      [
+        Buffer.from("voter"),
+        new PublicKey(electionId).toBuffer(),
+        Buffer.from(voterId),
+      ],
       program.programId
     );
 
@@ -313,13 +350,11 @@ app.get("/voter/status/:electionId", auth, async (req, res) => {
     }
   } catch (error) {
     return res.status(500).json({
-      error: error instanceof Error ? error.message : "An unknown error occurred"
+      error:
+        error instanceof Error ? error.message : "An unknown error occurred",
     });
   }
 });
-
-
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

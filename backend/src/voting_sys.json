@@ -1,5 +1,5 @@
 {
-  "address": "CU8VgpcwS7mLoM1mNjXL9EAc55mDcRFsgPq9SMtfzNFV",
+  "address": "izmYTzv6KBxCLTjcPqVgJGbrkAz82oTX5tsyKu6CDwQ",
   "metadata": {
     "name": "voting_sys",
     "version": "0.1.0",
@@ -9,16 +9,7 @@
   "instructions": [
     {
       "name": "add_to_candidate_whitelist",
-      "discriminator": [
-        47,
-        187,
-        164,
-        138,
-        61,
-        111,
-        218,
-        96
-      ],
+      "discriminator": [47, 187, 164, 138, 61, 111, 218, 96],
       "accounts": [
         {
           "name": "election_data",
@@ -27,9 +18,7 @@
         {
           "name": "initiator",
           "signer": true,
-          "relations": [
-            "election_data"
-          ]
+          "relations": ["election_data"]
         }
       ],
       "args": [
@@ -41,16 +30,7 @@
     },
     {
       "name": "add_to_voter_whitelist",
-      "discriminator": [
-        246,
-        38,
-        228,
-        128,
-        103,
-        220,
-        118,
-        246
-      ],
+      "discriminator": [246, 38, 228, 128, 103, 220, 118, 246],
       "accounts": [
         {
           "name": "election_data",
@@ -59,9 +39,7 @@
         {
           "name": "initiator",
           "signer": true,
-          "relations": [
-            "election_data"
-          ]
+          "relations": ["election_data"]
         }
       ],
       "args": [
@@ -73,16 +51,7 @@
     },
     {
       "name": "change_stage",
-      "discriminator": [
-        26,
-        65,
-        114,
-        165,
-        92,
-        184,
-        26,
-        49
-      ],
+      "discriminator": [26, 65, 114, 165, 92, 184, 26, 49],
       "accounts": [
         {
           "name": "election_data",
@@ -91,9 +60,7 @@
         {
           "name": "initiator",
           "signer": true,
-          "relations": [
-            "election_data"
-          ]
+          "relations": ["election_data"]
         }
       ],
       "args": [
@@ -109,16 +76,7 @@
     },
     {
       "name": "create_election",
-      "discriminator": [
-        190,
-        206,
-        84,
-        42,
-        83,
-        221,
-        248,
-        249
-      ],
+      "discriminator": [190, 206, 84, 42, 83, 221, 248, 249],
       "accounts": [
         {
           "name": "election_data",
@@ -148,16 +106,7 @@
     },
     {
       "name": "register_candidate",
-      "discriminator": [
-        91,
-        136,
-        96,
-        222,
-        242,
-        4,
-        160,
-        182
-      ],
+      "discriminator": [91, 136, 96, 222, 242, 4, 160, 182],
       "accounts": [
         {
           "name": "candidate_data",
@@ -166,17 +115,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  110,
-                  100,
-                  105,
-                  100,
-                  97,
-                  116,
-                  101
-                ]
+                "value": [99, 97, 110, 100, 105, 100, 97, 116, 101]
               },
               {
                 "kind": "account",
@@ -212,16 +151,7 @@
     },
     {
       "name": "remove_from_candidate_whitelist",
-      "discriminator": [
-        66,
-        23,
-        51,
-        52,
-        90,
-        243,
-        197,
-        121
-      ],
+      "discriminator": [66, 23, 51, 52, 90, 243, 197, 121],
       "accounts": [
         {
           "name": "election_data",
@@ -230,9 +160,7 @@
         {
           "name": "initiator",
           "signer": true,
-          "relations": [
-            "election_data"
-          ]
+          "relations": ["election_data"]
         }
       ],
       "args": [
@@ -244,16 +172,7 @@
     },
     {
       "name": "remove_from_voter_whitelist",
-      "discriminator": [
-        138,
-        188,
-        148,
-        59,
-        20,
-        173,
-        10,
-        46
-      ],
+      "discriminator": [138, 188, 148, 59, 20, 173, 10, 46],
       "accounts": [
         {
           "name": "election_data",
@@ -262,9 +181,7 @@
         {
           "name": "initiator",
           "signer": true,
-          "relations": [
-            "election_data"
-          ]
+          "relations": ["election_data"]
         }
       ],
       "args": [
@@ -276,16 +193,7 @@
     },
     {
       "name": "vote",
-      "discriminator": [
-        227,
-        110,
-        155,
-        23,
-        136,
-        126,
-        172,
-        25
-      ],
+      "discriminator": [227, 110, 155, 23, 136, 126, 172, 25],
       "accounts": [
         {
           "name": "candidate_data",
@@ -294,17 +202,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  110,
-                  100,
-                  105,
-                  100,
-                  97,
-                  116,
-                  101
-                ]
+                "value": [99, 97, 110, 100, 105, 100, 97, 116, 101]
               },
               {
                 "kind": "account",
@@ -328,13 +226,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  118,
-                  111,
-                  116,
-                  101,
-                  114
-                ]
+                "value": [118, 111, 116, 101, 114]
               },
               {
                 "kind": "account",
@@ -372,42 +264,15 @@
   "accounts": [
     {
       "name": "CandidateData",
-      "discriminator": [
-        242,
-        114,
-        27,
-        163,
-        254,
-        113,
-        100,
-        155
-      ]
+      "discriminator": [242, 114, 27, 163, 254, 113, 100, 155]
     },
     {
       "name": "ElectionData",
-      "discriminator": [
-        83,
-        132,
-        137,
-        223,
-        164,
-        5,
-        215,
-        85
-      ]
+      "discriminator": [83, 132, 137, 223, 164, 5, 215, 85]
     },
     {
       "name": "VoterData",
-      "discriminator": [
-        188,
-        23,
-        235,
-        160,
-        38,
-        227,
-        251,
-        114
-      ]
+      "discriminator": [188, 23, 235, 160, 38, 227, 251, 114]
     }
   ],
   "errors": [

@@ -1,146 +1,161 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Users, Award, Activity } from 'lucide-react';
-import { fetchElection, fetchCandidates } from '../../store/slices/electionSlice';
-import { RootState, AppDispatch } from '../../store';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Users, Award, Activity } from "lucide-react";
 // import axios from 'axios';
-import { api } from '../../api/axios';
-import toast from 'react-hot-toast';
+import { api } from "../../api/axios";
+import toast from "react-hot-toast";
 
 /// Manager Dashboard component.
 ///
 /// This component displays the manager dashboard and provides functionality
 /// to create elections, add voters, register candidates, and manage election stages.
+const getCurrentStage = (stage: any): string => {
+  if (stage.application) return "application";
+  if (stage.voting) return "voting";
+  if (stage.closed) return "closed";
+  return "unknown";
+};
 const ManagerDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch<AppDispatch>();
-  const { currentElection, isLoading } = useSelector((state: RootState) => state.election);
-  
-  const [totalVotes, setTotalVotes] = useState('');
-  const [totalCandidates, setTotalCandidates] = useState('');
-  const [voterId, setVoterId] = useState('');
-  const [candidateName, setCandidateName] = useState('');
+
+  const [currentElection, setCurrentElection] = useState({
+    id: import.meta.env.VITE_ELECTION_PUB_KEY,
+    stage: "",
+  });
+  const [totalVotes, setTotalVotes] = useState("");
+  const [totalCandidates, setTotalCandidates] = useState("");
+  const [voterId, setVoterId] = useState("");
+  const [candidateName, setCandidateName] = useState("");
   const [showStatus, setShowStatus] = useState(false);
   const [electionDetails, setElectionDetails] = useState(null);
 
   /// Handles the logout functionality.
   ///
+  useEffect(() => {
+    async function func() {
+      const res = await api.get(
+        `/election/${import.meta.env.VITE_ELECTION_PUB_KEY}`
+      );
+      setCurrentElection({
+        id: import.meta.env.VITE_ELECTION_PUB_KEY,
+        stage: getCurrentStage(res.data.stage),
+      });
+    }
+    func();
+  }, []);
   /// Removes the manager token from local storage and navigates to the login page.
   const handleLogout = () => {
-    localStorage.removeItem('managerToken');
-    navigate('/manager/login');
+    localStorage.removeItem("managerToken");
+    navigate("/manager/login");
   };
 
-  useEffect(() => {
-    if (currentElection?.id) {
-      dispatch(fetchElection(currentElection.id));
-      dispatch(fetchCandidates(currentElection.id));
-    }
-  }, [dispatch, currentElection?.id]);
-
-  useEffect(() => {
-    const fetchCurrentElection = async () => {
-      if (currentElection?.id) {
-        try {
-          await api.get(`/election/${currentElection.id}`);
-          dispatch(fetchElection(currentElection.id));
-        } catch (error) {
-          console.error('Failed to fetch election details:', error);
-        }
-      }
-    };
-
-    fetchCurrentElection();
-    const interval = setInterval(fetchCurrentElection, 5000); // Poll every 5 seconds
-    
-    return () => clearInterval(interval);
-  }, [currentElection?.id, dispatch]);
-  
   const handleCreateElection = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentElection) {
-      toast.error('An election is already in progress');
-      return;
-    }
-    
+    // if (currentElection) {
+    //   toast.error("An election is already in progress");
+    //   return;
+    // }
+
     try {
-      const response = await api.post('/create-election', {
+      const response = await api.post("/create-election", {
         totalVotes: parseInt(totalVotes),
         totalCandidates: parseInt(totalCandidates),
       });
-      toast.success('Election created successfully!');
-      dispatch(fetchElection(response.data.electionId));
+      toast.success("Election created successfully!");
+      setCurrentElection({
+        id: response.data.electionId,
+        stage: "application",
+      });
     } catch (error) {
       console.log(error);
-      toast.error('Failed to create election');
+      toast.error("Failed to create election");
     }
   };
 
   const handleAddVoter = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentElection) return;
-    
+    if (!currentElection.id) return;
+
     try {
-      await api.post('/add-voter', {
+      await api.post("/add-voter", {
         electionKey: currentElection.id,
         voterId,
       });
-      toast.success('Voter added successfully!');
-      setVoterId('');
+      toast.success("Voter added successfully!");
+      setVoterId("");
     } catch (error) {
-      toast.error('Failed to add voter');
+      toast.error("Failed to add voter");
     }
   };
 
   const handleAddCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentElection) return;
+    if (!currentElection.id) return;
 
     try {
-      await api.post('/add-candidate', {
+      const res = await api.post("/add-candidate", {
         electionId: currentElection.id,
         candidateName: candidateName,
       });
-      toast.success('Candidate added successfully!');
-      setCandidateName('');
-      dispatch(fetchCandidates(currentElection.id));
+      if (res.data.success) {
+        toast.success("Candidate added successfully!");
+        setCandidateName("");
+        const res2 = await api.post("/register-candidate", {
+          electionId: currentElection.id,
+          candidateName: candidateName,
+        });
+        if (res2.data.success) {
+          toast.success("Candidate registered successfully!");
+        } else {
+          toast.error("Failed to register candidate");
+        }
+      } else {
+        toast.error("Failed to add candidate");
+      }
     } catch (error) {
-      toast.error('Failed to add candidate');
+      toast.error("Failed to add candidate");
     }
   };
 
-  const handleChangeStage = async (stage: 'application' | 'voting' | 'closed') => {
-    if (!currentElection) return;
-    
+  const handleChangeStage = async (
+    stage: "application" | "voting" | "closed"
+  ) => {
+    if (!currentElection.id) return;
+
     try {
-      await api.post('/change-stage', {
-        electionId: currentElection.id,
-        stage,
-      }, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('managerToken')}`
+      await api.post(
+        "/change-stage",
+        {
+          electionId: currentElection.id,
+          stage,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("managerToken")}`,
+          },
         }
-      });
-      
-      // Immediately fetch updated election data
+      );
+
+      // Immediately fetch updated election datas
       await api.get(`/election/${currentElection.id}`);
-      dispatch(fetchElection(currentElection.id));
+      setCurrentElection({ id: currentElection.id, stage: stage });
       toast.success(`Election stage changed to ${stage}`);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to change election stage');
+      toast.error(
+        error.response?.data?.error || "Failed to change election stage"
+      );
     }
   };
 
   const handleShowStatus = async () => {
     if (!currentElection?.id) return;
-    
+
     try {
       const response = await api.get(`/election/${currentElection.id}`);
       setElectionDetails(response.data);
       setShowStatus(true);
     } catch (error) {
-      toast.error('Failed to fetch election details');
+      toast.error("Failed to fetch election details");
     }
   };
 
@@ -159,13 +174,13 @@ const ManagerDashboard: React.FC = () => {
     );
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+  // if (isLoading) {
+  //   return (
+  //     <div className="flex justify-center items-center h-64">
+  //       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="space-y-8">
@@ -176,16 +191,16 @@ const ManagerDashboard: React.FC = () => {
         >
           Logout
         </button>
-        
+
         <button
           onClick={handleShowStatus}
-          disabled={!currentElection}
+          disabled={!currentElection.id}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-lg"
         >
           View Election Details
         </button>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Rest of the JSX remains the same */}
         {/* Create Election Form */}
@@ -195,7 +210,9 @@ const ManagerDashboard: React.FC = () => {
           </h2>
           <form onSubmit={handleCreateElection} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Total Votes</label>
+              <label className="block text-sm font-medium mb-1">
+                Total Votes
+              </label>
               <input
                 type="number"
                 value={totalVotes}
@@ -205,7 +222,9 @@ const ManagerDashboard: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Total Candidates</label>
+              <label className="block text-sm font-medium mb-1">
+                Total Candidates
+              </label>
               <input
                 type="number"
                 value={totalCandidates}
@@ -230,7 +249,9 @@ const ManagerDashboard: React.FC = () => {
           </h2>
           <form onSubmit={handleAddVoter} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Voter ID/Email</label>
+              <label className="block text-sm font-medium mb-1">
+                Voter ID/Email
+              </label>
               <input
                 type="email"
                 value={voterId}
@@ -242,7 +263,7 @@ const ManagerDashboard: React.FC = () => {
             <button
               type="submit"
               className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg"
-              disabled={!currentElection}
+              disabled={!currentElection.id}
             >
               Add Voter
             </button>
@@ -256,7 +277,9 @@ const ManagerDashboard: React.FC = () => {
           </h2>
           <form onSubmit={handleAddCandidate} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Candidate Name</label>
+              <label className="block text-sm font-medium mb-1">
+                Candidate Name
+              </label>
               <input
                 type="text"
                 value={candidateName}
@@ -268,7 +291,7 @@ const ManagerDashboard: React.FC = () => {
             <button
               type="submit"
               className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg"
-              disabled={!currentElection}
+              disabled={!currentElection.id}
             >
               Register Candidate
             </button>
@@ -280,7 +303,7 @@ const ManagerDashboard: React.FC = () => {
           <h2 className="text-xl font-bold mb-4 flex items-center">
             <Activity className="mr-2" /> Election Status
           </h2>
-          {currentElection ? (
+          {currentElection.id ? (
             <div className="space-y-4">
               <div className="p-4 bg-gray-700 rounded-lg">
                 <p className="text-sm text-gray-400">Election ID</p>
@@ -288,23 +311,25 @@ const ManagerDashboard: React.FC = () => {
               </div>
               <div className="p-4 bg-gray-700 rounded-lg">
                 <p className="text-sm text-gray-400">Current Stage</p>
-                <p className="capitalize font-semibold">{currentElection.stage}</p>
+                <p className="capitalize font-semibold">
+                  {currentElection.stage}
+                </p>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <button
-                  onClick={() => handleChangeStage('application')}
+                  onClick={() => handleChangeStage("application")}
                   className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-sm"
                 >
                   Application
                 </button>
                 <button
-                  onClick={() => handleChangeStage('voting')}
+                  onClick={() => handleChangeStage("voting")}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm"
                 >
                   Voting
                 </button>
                 <button
-                  onClick={() => handleChangeStage('closed')}
+                  onClick={() => handleChangeStage("closed")}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm"
                 >
                   Closed
@@ -316,7 +341,7 @@ const ManagerDashboard: React.FC = () => {
           )}
         </div>
       </div>
-      
+
       {showStatus && electionDetails && (
         <div onClick={() => setShowStatus(false)} className="cursor-pointer">
           <ElectionStatus election={electionDetails} />

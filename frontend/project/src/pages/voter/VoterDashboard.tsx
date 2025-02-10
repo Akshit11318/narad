@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../../api/axios';
-import toast from 'react-hot-toast';
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../../api/axios";
+import toast from "react-hot-toast";
 
 interface Candidate {
   name: string;
@@ -11,9 +11,9 @@ interface Candidate {
 const VoterDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [electionId, setElectionId] = useState<string | null>(null);
-  const [electionStage, setElectionStage] = useState<string>('');
+  const [electionStage, setElectionStage] = useState<string>("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [selectedCandidate, setSelectedCandidate] = useState('');
+  const [selectedCandidate, setSelectedCandidate] = useState("");
   const [hasVoted, setHasVoted] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -22,17 +22,22 @@ const VoterDashboard: React.FC = () => {
     const fetchCurrentElection = async () => {
       try {
         // This endpoint should return { electionId, stage } for the current election.
-        const res = await api.get('/election/current');
-        const { electionId: fetchedElectionId, stage } = res.data;
-        setElectionId(fetchedElectionId);
-        setElectionStage(stage);
+        const res = await api.get(
+          `/election/${import.meta.env.VITE_ELECTION_PUB_KEY}`
+        );
+
+        setElectionId(import.meta.env.VITE_ELECTION_PUB_KEY);
+        console.log(`suppp: ${import.meta.env.VITE_ELECTION_PUB_KEY}`);
+        setElectionStage(res.data.stage);
 
         // Fetch candidates using the election's public key.
-        const candidateRes = await api.get(`/election/${fetchedElectionId}/candidates`);
+
         // Assuming candidateRes.data.candidates is an array of candidate objects or names.
-        setCandidates(candidateRes.data.candidates);
+        setCandidates(res.data.candidateWhitelist);
       } catch (error: any) {
-        toast.error(error.response?.data?.error || 'Failed to fetch election data');
+        toast.error(
+          error.response?.data?.error || "Failed to fetch election data"
+        );
       } finally {
         setLoading(false);
       }
@@ -40,28 +45,31 @@ const VoterDashboard: React.FC = () => {
 
     fetchCurrentElection();
   }, [navigate]);
+  useEffect(() => {
+    console.log("Election ID:", electionId);
+  }, [electionId]);
 
   const handleVote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!electionId || !selectedCandidate) {
-      toast.error('Please select a candidate.');
+      toast.error("Please select a candidate.");
       return;
     }
 
     try {
-      await api.post('/vote', {
+      await api.post("/vote", {
         electionId,
         candidateName: selectedCandidate,
       });
-      toast.success('Vote cast successfully!');
+      toast.success("Vote cast successfully!");
       setHasVoted(true);
       // Log out the voter after voting.
       setTimeout(() => {
-        localStorage.removeItem('token'); // Clear any stored JWT, if applicable.
-        navigate('/login', { replace: true });
+        localStorage.removeItem("token"); // Clear any stored JWT, if applicable.
+        navigate("/login", { replace: true });
       }, 3000);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Vote failed');
+      toast.error(error.response?.data?.error || "Vote failed");
     }
   };
 
@@ -74,7 +82,15 @@ const VoterDashboard: React.FC = () => {
   }
 
   // If the election stage is not voting, show a message.
-  if (electionStage !== 'voting') {
+  // Add this helper function at the top of your component
+  const getCurrentStage = (stage: any): string => {
+    if (stage.application) return "application";
+    if (stage.voting) return "voting";
+    if (stage.closed) return "closed";
+    return "unknown";
+  };
+  // Update the condition
+  if (getCurrentStage(electionStage) !== "voting") {
     return (
       <div className="flex flex-col justify-center items-center h-screen">
         <h2>Voting is not active currently.</h2>
@@ -98,7 +114,8 @@ const VoterDashboard: React.FC = () => {
         <div className="mb-4">
           {candidates.map((candidate: Candidate | string) => {
             // Handle candidate as either an object or a simple string.
-            const candidateName = typeof candidate === 'string' ? candidate : candidate.name;
+            const candidateName =
+              typeof candidate === "string" ? candidate : candidate.name;
             return (
               <div key={candidateName} className="mb-2">
                 <label className="inline-flex items-center">

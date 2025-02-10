@@ -1,26 +1,28 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../api/axios';
-import toast from 'react-hot-toast';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../api/axios";
+import toast from "react-hot-toast";
 
 const ManagerLogin = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const response = await api.post('/auth/manager/login', {
+      const response = await api.post("/auth/manager/login", {
         email,
-        password
+        password,
       });
-      
+
       const { token } = response.data;
-      localStorage.setItem('managerToken', token);
-      navigate('/manager/dashboard');
+      console.log(response);
+      localStorage.setItem("managerToken", token);
+      navigate("/manager/dashboard");
     } catch (error) {
-      toast.error('Invalid credentials');
+      toast.error("Invalid credentials");
+      console.error(error); // Add error logging
     }
   };
 
