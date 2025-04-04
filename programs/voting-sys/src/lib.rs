@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
-
+use num_bigint::{BigUint, RandBigInt};
+use num_traits::Num;
+use rand::thread_rng;
 declare_id!("izmYTzv6KBxCLTjcPqVgJGbrkAz82oTX5tsyKu6CDwQ");
 
 #[program]
@@ -13,8 +15,27 @@ pub mod voting_sys {
         election.initiator = ctx.accounts.signer.key();
         election.total_votes = total_votes;
         election.total_candidates = total_candidates;
-        election.voter_whitelist = Vec::new();
+        // election.voter_whitelist = Vec::new();
         election.candidate_whitelist = Vec::new();
+        // === 1. Generate N = p * q ===
+        let mut rng = thread_rng();
+        let p: BigUint = rng.gen_prime(256);
+        let q: BigUint = rng.gen_prime(256);
+        let n = &p * &q;
+        let n_squared = &n * &n;
+        election.n = n.to_bytes_be();
+
+        // === 2. Hash the constant seed ===
+        let h_raw_bytes = H_CONST;
+
+        // === 3. Convert hash to BigUint ===
+        let h_biguint = BigUint::from_bytes_be(&h_raw_bytes);
+
+        // === 4. Reduce mod N^2 ===
+        let h_mod_n2 = h_biguint % &n_squared;
+
+        // === 5. Store as bytes ===
+        election.h = h_mod_n2.to_bytes_be();
         Ok(())
     }
 
@@ -24,24 +45,24 @@ pub mod voting_sys {
         Ok(())
     }
 
-    pub fn add_to_voter_whitelist(ctx: Context<ModifyWhitelist>, voter_id: String) -> Result<()> {
-        let election = &mut ctx.accounts.election_data;
-        require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
-        require!(!election.voter_whitelist.contains(&voter_id), VotingError::AlreadyWhitelisted);
-        election.voter_whitelist.push(voter_id);
-        Ok(())
-    }
+    // pub fn add_to_voter_whitelist(ctx: Context<ModifyWhitelist>, voter_id: String) -> Result<()> {
+    //     let election = &mut ctx.accounts.election_data;
+    //     require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
+    //     require!(!election.voter_whitelist.contains(&voter_id), VotingError::AlreadyWhitelisted);
+    //     election.voter_whitelist.push(voter_id);
+    //     Ok(())
+    // }
 
-    pub fn remove_from_voter_whitelist(ctx: Context<ModifyWhitelist>, voter_id: String) -> Result<()> {
-        let election = &mut ctx.accounts.election_data;
-        require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
-        if let Some(index) = election.voter_whitelist.iter().position(|id| id == &voter_id) {
-            election.voter_whitelist.remove(index);
-        } else {
-            return Err(VotingError::NotWhitelisted.into());
-        }
-        Ok(())
-    }
+    // pub fn remove_from_voter_whitelist(ctx: Context<ModifyWhitelist>, voter_id: String) -> Result<()> {
+    //     let election = &mut ctx.accounts.election_data;
+    //     require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
+    //     if let Some(index) = election.voter_whitelist.iter().position(|id| id == &voter_id) {
+    //         election.voter_whitelist.remove(index);
+    //     } else {
+    //         return Err(VotingError::NotWhitelisted.into());
+    //     }
+    //     Ok(())
+    // }
 
     pub fn add_to_candidate_whitelist(ctx: Context<ModifyWhitelist>, candidate_name: String) -> Result<()> {
         let election = &mut ctx.accounts.election_data;
@@ -62,16 +83,7 @@ pub mod voting_sys {
         Ok(())
     }
 
-    pub fn register_candidate(ctx: Context<RegisterCandidate>, candidate_name: String) -> Result<()> {
-        let election = &mut ctx.accounts.election_data;
-        require!(candidate_name.len() <= 32, VotingError::NameTooLong);
-        require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
-        require!(election.candidate_whitelist.contains(&candidate_name), VotingError::NotWhitelisted);
-
-        let candidate = &mut ctx.accounts.candidate_data;
-        candidate.votes = 0;
-        Ok(())
-    }
+    
 
     pub fn vote(ctx: Context<Vote>, voter_id: String, candidate_name: String) -> Result<()> {
         let candidate = &mut ctx.accounts.candidate_data;
@@ -79,7 +91,7 @@ pub mod voting_sys {
         let voter = &mut ctx.accounts.voter_data;
 
         require!(election.stage == ElectionStage::Voting, VotingError::InvalidStage);
-        require!(election.voter_whitelist.contains(&voter_id), VotingError::NotWhitelisted);
+        // require!(election.voter_whitelist.contains(&voter_id), VotingError::NotWhitelisted);
         require!(voter.voted == false, VotingError::AlreadyVoted);
 
         candidate.votes += 1;
@@ -88,14 +100,19 @@ pub mod voting_sys {
         Ok(())
     }
 }
-
+pub const H_CONST: [u8; 32] = [
+    0x0b, 0x54, 0xc4, 0x2d, 0x86, 0x12, 0x6e, 0x72,
+    0x3d, 0x9b, 0xf2, 0x83, 0xae, 0x62, 0xf0, 0x5e,
+    0x88, 0x45, 0x1e, 0xa2, 0xbc, 0x66, 0x48, 0x37,
+    0x3a, 0xd6, 0x8a, 0x0f, 0x1a, 0x8a, 0x06, 0xc1
+];
 #[derive(Accounts)]
 #[instruction(total_votes: u64, total_candidates: u64)]  // Changed from usize to u64
 pub struct CreateElection<'info> {
     #[account(
         init,
         payer = signer,
-        space = 8 + 1 + 32 + 8 + (4 + 32 * total_votes as usize) + (4 + 32 * total_candidates as usize)
+        space = 8 + 1 + 32 + 8 + (4 + 32 * total_candidates as usize) + 64 + 32,
     )]
     pub election_data: Account<'info, ElectionData>,
     #[account(mut)]
@@ -117,23 +134,7 @@ pub struct ModifyWhitelist<'info> {
     pub initiator: Signer<'info>,
 }
 
-#[derive(Accounts)]
-#[instruction(candidate_name: String)] // Include the candidate_name here
-pub struct RegisterCandidate<'info> {
-    #[account(
-        init,
-        payer = signer,
-        space = 8 + CandidateData::MAX_SIZE,
-        seeds = [b"candidate", election_data.key().as_ref(), candidate_name.as_bytes()],
-        bump
-    )]
-    pub candidate_data: Account<'info, CandidateData>,
-    #[account(mut)]
-    pub election_data: Account<'info, ElectionData>,
-    #[account(mut)]
-    pub signer: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
+
 
 #[derive(Accounts)]
 #[instruction(voter_id: String, candidate_name: String)]
@@ -165,19 +166,10 @@ pub struct ElectionData {
     pub initiator: Pubkey,
     pub total_votes: u64,
     pub total_candidates: u64,
-    pub voter_whitelist: Vec<String>,
+    
     pub candidate_whitelist: Vec<String>,
-}
-
-
-
-#[account]
-pub struct CandidateData {
-    pub votes: u64,
-}
-
-impl CandidateData {
-    pub const MAX_SIZE: usize = 8; // votes (8 bytes)
+    pub n: Vec<u8>,
+    pub h: Vec<u8>,
 }
 
 #[account]
