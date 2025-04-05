@@ -17,4 +17,6 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
+num-bigint = { version = "0.4", features = ["rand"] }
+num-traits = { version = "0.2", default-features = false }
 anchor-lang = "0.30.1"

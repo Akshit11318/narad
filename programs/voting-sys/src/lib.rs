@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
-use num_bigint::{BigUint, RandBigInt};
-// use num_traits::Num;
-use rand::thread_rng;
+use num_bigint::BigUint;
+use num_traits::identities::One;  // For BigUint::from(1u32)
+
+
 declare_id!("izmYTzv6KBxCLTjcPqVgJGbrkAz82oTX5tsyKu6CDwQ");
 
 #[program]
@@ -43,26 +44,16 @@ pub mod voting_sys {
         let mut h_mod_n2 = h_biguint % &n_squared;
         
         // Keep incrementing h until we find a coprime value
-        while h_mod_n2.gcd(&n_squared) != BigUint::from(1u32) {
-            h_mod_n2 += BigUint::from(1u32);
-            h_mod_n2 = h_mod_n2 % &n_squared;
-        }
+
+        let one = BigUint::from(1u32);
+        while (&h_mod_n2 % &n_squared) != one {
+           h_mod_n2 += &one;
+           h_mod_n2 = h_mod_n2 % &n_squared;
+         }
 
         // === 5. Store coprime h ===
         election.h = h_mod_n2.to_bytes_be();
 
-        // Generate random SKA in Zn²* (numbers coprime to n²)
-        let mut rng = thread_rng();
-        let zero = BigUint::from(0u32);
-        loop {
-            let ska_candidate = rng.gen_biguint_range(&zero, &n_squared);
-            // Check if ska is coprime with n² using GCD
-            if ska_candidate.gcd(&n_squared) == BigUint::from(1u32) {
-                election.ska = ska_candidate.to_bytes_be();
-                break;
-            }
-        }
-        
         Ok(())
     }
 
@@ -71,25 +62,19 @@ pub mod voting_sys {
         election.stage = new_stage;
         Ok(())
     }
-
-    // pub fn add_to_voter_whitelist(ctx: Context<ModifyWhitelist>, voter_id: String) -> Result<()> {
-    //     let election = &mut ctx.accounts.election_data;
-    //     require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
-    //     require!(!election.voter_whitelist.contains(&voter_id), VotingError::AlreadyWhitelisted);
-    //     election.voter_whitelist.push(voter_id);
-    //     Ok(())
-    // }
-
-    // pub fn remove_from_voter_whitelist(ctx: Context<ModifyWhitelist>, voter_id: String) -> Result<()> {
-    //     let election = &mut ctx.accounts.election_data;
-    //     require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
-    //     if let Some(index) = election.voter_whitelist.iter().position(|id| id == &voter_id) {
-    //         election.voter_whitelist.remove(index);
-    //     } else {
-    //         return Err(VotingError::NotWhitelisted.into());
-    //     }
-    //     Ok(())
-    // }
+    pub fn addska(ctx: Context<ChangeStage>, ska: Vec<u8>) -> Result<()> {
+        let election = &mut ctx.accounts.election_data;
+        require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
+        election.ska = ska;
+        Ok(())
+    }
+    pub fn addauxt(ctx: Context<ChangeStage>, auxt: Vec<u8>) -> Result<()> {
+        let election = &mut ctx.accounts.election_data;
+        require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
+        election.auxt = auxt;
+        Ok(())
+    }
+    
 
     pub fn add_to_candidate_whitelist(ctx: Context<ModifyWhitelist>, candidate_name: String) -> Result<()> {
         let election = &mut ctx.accounts.election_data;
@@ -145,7 +130,7 @@ pub struct CreateElection<'info> {
     #[account(
         init,
         payer = signer,
-        space = 8 + 1 + 32 + 8 + (4 + 32 * total_candidates as usize) + 64 + 32 + 128 + 128,
+        space = 8 + 1 + 32 + 8 + (4 + 32 * total_candidates as usize) + 64 + 32 + 128 + 128 + 128,
     )]
     pub election_data: Account<'info, ElectionData>,
     #[account(mut)]
@@ -207,6 +192,7 @@ pub struct ElectionData {
     pub h: Vec<u8>,
     pub ska: Vec<u8>,
     pub collector_pkc: Vec<u8>,
+    pub auxt: Vec<u8>,
 }
 
 #[account]
