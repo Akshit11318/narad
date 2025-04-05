@@ -1,31 +1,29 @@
-# Makefile for compiling C code to WebAssembly
+# Makefile for compiling the voting system WebAssembly module
 
-# Emscripten compiler and flags
-EMCC = emcc
-EMCFLAGS = -O2 \
-    -s WASM=1 \
-    -s EXPORTED_FUNCTIONS="['_malloc', '_free', '_encrypt_vote', '_create_bigint_from_array', '_free_bigint_ptr']" \
-    -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap']" \
-    -s ALLOW_MEMORY_GROWTH=1 \
-    -s MODULARIZE=1 \
-    -s EXPORT_ES6=1 
-    
+# Output file name
+OUTPUT = voting_wasm.js
 
 # Source files
-SRCS = main.c bigint_ops.c
+SOURCES = main.c bigint_ops.c vote_encrypt.c
 
-# Output file
-OUTPUT = encryption.wasm
+# Emscripten compiler
+EMCC = emcc
 
-# Default target
+# Compiler flags
+CFLAGS = -O3 -s WASM=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] \
+         -s EXPORTED_FUNCTIONS="['_malloc', '_free', '_encrypt_vote', '_create_bigint_from_array', \
+          '_free_bigint_ptr', '_pack_votes', '_pack_and_encrypt_votes', '_encrypt_and_store_votes', \
+          '_retrieve_encrypted_vote', '_get_encrypted_vote_size_wrapper', '_clear_encrypted_vote_wrapper']" \
+         -s ALLOW_MEMORY_GROWTH=1
+
+# Build rule
 all: $(OUTPUT)
 
-# Compile C code to WebAssembly
-$(OUTPUT): $(SRCS)
-	$(EMCC) $(EMCFLAGS) $(SRCS) -o encryption.js
+$(OUTPUT): $(SOURCES)
+	$(EMCC) $(CFLAGS) -o $(OUTPUT) $(SOURCES)
 
-# Clean target
+# Clean rule
 clean:
-	rm -f $(OUTPUT)
+	rm -f $(OUTPUT) $(OUTPUT).wasm
 
 .PHONY: all clean

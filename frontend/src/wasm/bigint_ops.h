@@ -48,4 +48,13 @@ int modular_exponentiation(const BigInt* base, const BigInt* exponent,
 int modular_multiplication(const BigInt* a, const BigInt* b, 
                            const BigInt* modulus, BigInt* result);
 
+/**
+ * @brief Perform plain multiplication without modular reduction: result = a * b
+ * @param a First operand
+ * @param b Second operand
+ * @param result Pointer to store the result
+ * @return 0 on success, non-zero on failure
+ */
+int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result);
+
 #endif // BIGINT_OPS_H

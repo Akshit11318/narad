@@ -1,5 +1,6 @@
 #include <emscripten.h>
 #include "bigint_ops.h"
+#include "vote_encrypt.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -17,9 +18,9 @@ int encrypt_vote(const uint8_t* vote_array, size_t vote_length,
     BigInt h = create_bigint(h_data, h_length);
     BigInt ska = create_bigint(ska_data, ska_length);
     
-    // Calculate n_squared (n^2)
+    // Calculate n_squared (n^2) using plain multiplication
     BigInt n_squared;
-    modular_multiplication(&n, &n, &n, &n_squared);
+    multiply_bigint(&n, &n, &n_squared);
     
     // Perform the encryption: result = h^vote * ska^n mod n^2
     BigInt h_vote;

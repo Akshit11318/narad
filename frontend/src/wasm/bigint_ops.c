@@ -93,3 +93,54 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
     
     return 0;
 }
+
+// Implementation of plain multiplication without modular reduction
+int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result) {
+    if (!a || !b || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Calculate the resulting size
+    size_t result_length = a->length + b->length;
+    
+    // Allocate memory for the result
+    uint8_t* product = (uint8_t*)calloc(result_length, 1);
+    if (!product) {
+        return -2; // Memory allocation failure
+    }
+    
+    // Perform long multiplication
+    for (size_t i = 0; i < a->length; i++) {
+        uint16_t carry = 0;
+        for (size_t j = 0; j < b->length; j++) {
+            uint16_t temp = product[i + j] + (uint16_t)a->data[i] * b->data[j] + carry;
+            product[i + j] = temp & 0xFF;
+            carry = temp >> 8;
+        }
+        if (carry > 0 && i + b->length < result_length) {
+            product[i + b->length] += carry;
+        }
+    }
+    
+    // Remove leading zeros
+    size_t actual_length = result_length;
+    while (actual_length > 1 && product[actual_length - 1] == 0) {
+        actual_length--;
+    }
+    
+    // Set up the result
+    if (result->data) {
+        free_bigint(result);
+    }
+    result->data = (uint8_t*)malloc(actual_length);
+    if (!result->data) {
+        free(product);
+        return -2; // Memory allocation failure
+    }
+    
+    result->length = actual_length;
+    memcpy(result->data, product, actual_length);
+    
+    free(product);
+    return 0;
+}
