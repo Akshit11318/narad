@@ -13,13 +13,6 @@ typedef struct {
 } BigInt;
 
 /**
- * @brief Structure to hold collector's public key
- */
-typedef struct {
-    BigInt public_key;   // Collector's public key (pk_A = H^sk_A)
-} CollectorPublicKey;
-
-/**
  * @brief Structure to hold election parameters
  */
 typedef struct {
@@ -34,13 +27,6 @@ typedef struct {
  * @return 0 on success, non-zero on failure
  */
 int collector_init(const ElectionParams* params);
-
-/**
- * @brief Initialize the collector with a public key
- * @param public_key The collector's public key
- * @return 0 on success, non-zero on failure
- */
-int collector_set_public_key(const BigInt* public_key);
 
 /**
  * @brief Process an auxiliary value from a user in real-time

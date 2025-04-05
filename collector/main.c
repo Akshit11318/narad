@@ -30,25 +30,6 @@ int main() {
         return 1;
     }
     
-    // Fetch collector's public key from the HTTP server
-    BigInt public_key;
-    if (fetch_collector_public_key(&public_key) != 0) {
-        printf("Failed to fetch collector's public key\n");
-        collector_cleanup();
-        return 1;
-    }
-    
-    // Set the collector's public key
-    if (collector_set_public_key(&public_key) != 0) {
-        printf("Failed to set collector's public key\n");
-        free_bigint(&public_key);
-        collector_cleanup();
-        return 1;
-    }
-    
-    print_bigint_hex("Collector public key (pk_A)", &public_key);
-    free_bigint(&public_key);
-    
     // Reset the auxiliary product to start fresh
     if (reset_auxiliary_product() != 0) {
         printf("Failed to reset auxiliary product\n");

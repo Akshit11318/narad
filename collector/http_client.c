@@ -7,7 +7,6 @@
 
 #define API_BASE_URL "http://localhost:3000/api"
 #define ELECTION_PARAMS_ENDPOINT "/election/params"
-#define COLLECTOR_KEY_ENDPOINT "/collector/public-key"
 #define FINAL_AUX_ENDPOINT "/auxiliary/final"
 
 // Structure to hold response data
@@ -99,17 +98,6 @@ int fetch_election_params(ElectionParams* params) {
     }
 
     int result = parse_election_params_json(response, params);
-    free(response);
-    return result;
-}
-
-int fetch_collector_public_key(BigInt* public_key) {
-    char* response = http_get(COLLECTOR_KEY_ENDPOINT);
-    if (!response) {
-        return -1;
-    }
-
-    int result = parse_collector_public_key_json(response, public_key);
     free(response);
     return result;
 }

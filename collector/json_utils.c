@@ -106,14 +106,3 @@ int parse_election_params_json(const char* json_str, ElectionParams* params) {
     free(h_hex);
     return result;
 }
-
-int parse_collector_public_key_json(const char* json_str, BigInt* public_key) {
-    if (!json_str || !public_key) return -1;
-    
-    char* pk_hex = find_json_value(json_str, "public_key");
-    if (!pk_hex) return -1;
-    
-    int result = hex_string_to_bigint(pk_hex, public_key);
-    free(pk_hex);
-    return result;
-}
