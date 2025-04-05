@@ -12,7 +12,6 @@ The collector module is responsible for:
 
 ## Key Components
 
-- **Key Generation**: Creates and manages key pairs for the collector
 - **Auxiliary Value Processing**: Computes the final auxiliary value from individual user contributions
 - **Cryptographic Operations**: Implements modular exponentiation and multiplication for secure aggregation
 - **HTTP Client**: Handles communication with the backend server for parameter fetching and result submission using libcurl
@@ -63,7 +62,6 @@ The demo simulates:
 The collector communicates with the backend server through the following endpoints:
 
 - `GET /api/election/params` - Fetch election parameters
-- `GET /api/collector/public-key` - Fetch collector's public key
 - `POST /api/auxiliary/final` - Submit final auxiliary value
 
 The server is expected to run on `http://localhost:3000` by default.
@@ -82,7 +80,8 @@ The server is expected to run on `http://localhost:3000` by default.
 
 - `collector.h/c`: Core collector functionality and state management
 - `bigint_ops.h/c`: Big integer operations for cryptographic calculations
-- `blockchain_interface.h/c`: Interface with the blockchain system
+- `json_utils.h/c`: Functions for parsing JSON data and converting between hex strings and BigInt
+- `http_client.h/c`: Interface with the backend server
 - `main.c`: Demo program showing usage of the collector module
 
 ## Error Handling

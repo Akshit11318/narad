@@ -5,7 +5,6 @@
 
 // Static variables to hold the collector's state
 static ElectionParams g_params;
-static BigInt g_public_key;
 static BigInt g_running_product;
 static int g_initialized = 0;
 static int g_product_initialized = 0;
@@ -26,17 +25,6 @@ int collector_init(const ElectionParams* params) {
     g_product_initialized = 1;
     
     g_initialized = 1;
-    return 0;
-}
-
-int collector_set_public_key(const BigInt* public_key) {
-    if (!public_key || !g_initialized) {
-        return -1; // Invalid parameters or collector not initialized
-    }
-    
-    // Copy the public key
-    g_public_key = create_bigint(public_key->data, public_key->length);
-    
     return 0;
 }
 
@@ -88,8 +76,7 @@ int collector_cleanup(void) {
     free_bigint(&g_params.N_squared);
     free_bigint(&g_params.H);
     
-    // Free the public key and running product
-    free_bigint(&g_public_key);
+    // Free the running product
     if (g_product_initialized) {
         free_bigint(&g_running_product);
         g_product_initialized = 0;

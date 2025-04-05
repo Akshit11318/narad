@@ -12,14 +12,6 @@
 int parse_election_params_json(const char* json_str, ElectionParams* params);
 
 /**
- * @brief Parse collector public key from JSON string
- * @param json_str The JSON string containing public key
- * @param public_key Pointer to store the parsed public key
- * @return 0 on success, non-zero on failure
- */
-int parse_collector_public_key_json(const char* json_str, BigInt* public_key);
-
-/**
  * @brief Convert BigInt to hex string
  * @param big_int The BigInt to convert
  * @param hex_str Buffer to store the hex string
