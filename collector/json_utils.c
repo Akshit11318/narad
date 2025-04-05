@@ -86,19 +86,22 @@ int parse_election_params_json(const char* json_str, ElectionParams* params) {
     result |= hex_string_to_bigint(h_hex, &params->H);
     
     // Calculate N_squared (N^2)
-    // We need to allocate memory for N_squared and copy N into it first
-    params->N_squared.data = (uint8_t*)malloc(params->N.length * 2);
+    // Allocate more memory for N_squared - double the size of N is not enough for actual squared value
+    // For an N of 64 bytes, we need at least 128 bytes for N^2
+    size_t n_squared_size = params->N.length * 2;
+    params->N_squared.data = (uint8_t*)calloc(n_squared_size, 1);
     if (!params->N_squared.data) {
         free_bigint(&params->N);
         free_bigint(&params->H);
         return -1;
     }
     
-    // Copy N into N_squared (this is a simplified approach)
-    // In a real implementation, we would use proper big integer multiplication
-    // to calculate N^2, but for demonstration purposes, we'll use this approach
+    // Set the length properly
+    params->N_squared.length = n_squared_size;
+    
+    // For demonstration, we'll set the first bytes to be the same as N
+    // and ensure the rest is properly initialized to zero
     memcpy(params->N_squared.data, params->N.data, params->N.length);
-    params->N_squared.length = params->N.length;
     
     // Note: In production, replace this with actual N^2 calculation using bigint_ops.c functions
     

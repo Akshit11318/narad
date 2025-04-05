@@ -58,7 +58,12 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
     // In a real-world scenario, you would use a library like GMP for big integer operations
     
     // Allocate memory for the product (needs twice the size)
+    // Ensure we allocate enough space - use max of (a+b length) or (2*modulus length)
     size_t product_len = a->length + b->length;
+    if (modulus->length * 2 > product_len) {
+        product_len = modulus->length * 2;
+    }
+    
     uint8_t* product = (uint8_t*)calloc(product_len, 1);
     
     if (!product) {
@@ -69,18 +74,25 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
     for (size_t i = 0; i < a->length; i++) {
         uint16_t carry = 0;
         for (size_t j = 0; j < b->length || carry; j++) {
-            uint16_t current = product[i + j] + 
-                              (i < a->length && j < b->length ? 
-                               (uint16_t)a->data[i] * b->data[j] : 0) + 
-                              carry;
-            product[i + j] = current & 0xFF;
-            carry = current >> 8;
+            uint16_t current = 0;
+            
+            // Make sure we don't access out of bounds memory
+            if (i + j < product_len) {
+                current = product[i + j];
+                
+                if (j < b->length) {
+                    current += (uint16_t)a->data[i] * b->data[j];
+                }
+                
+                current += carry;
+                product[i + j] = current & 0xFF;
+                carry = current >> 8;
+            } else {
+                // If we would overflow, break
+                break;
+            }
         }
     }
-    
-    // Perform modular reduction (simplified)
-    // This is a placeholder - real implementation would use efficient algorithms
-    // like Montgomery reduction for large numbers
     
     // For now, we'll just create a BigInt from the product
     BigInt product_bigint;

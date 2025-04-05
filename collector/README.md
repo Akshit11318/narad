@@ -62,6 +62,7 @@ The demo simulates:
 The collector communicates with the backend server through the following endpoints:
 
 - `GET /api/election/params` - Fetch election parameters
+- `GET /api/auxiliary/values` - Fetch auxiliary values from voters
 - `POST /api/auxiliary/final` - Submit final auxiliary value
 
 The server is expected to run on `http://localhost:3000` by default.

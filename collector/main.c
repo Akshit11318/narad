@@ -13,6 +13,38 @@ void print_bigint_hex(const char* label, const BigInt* big_int) {
     printf("\n");
 }
 
+// Function to process an auxiliary value and print its status
+int process_and_print_aux(const BigInt* aux_i) {
+    static int user_count = 0;
+    user_count++;
+    
+    // Increase the buffer size from 32 to 64 to accommodate longer strings
+    char label[64];
+    sprintf(label, "Received auxiliary value from user %d", user_count);
+    print_bigint_hex(label, aux_i);
+    
+    // Process this auxiliary value in real-time
+    if (process_auxiliary_value_realtime(aux_i) != 0) {
+        printf("Failed to process auxiliary value from user %d\n", user_count);
+        return -1;
+    }
+    
+    // Get the current running product after processing this aux_i
+    BigInt current_product;
+    if (get_current_auxiliary_product(&current_product) != 0) {
+        printf("Failed to get current auxiliary product\n");
+        return -1;
+    }
+    
+    sprintf(label, "Current running product after user %d", user_count);
+    print_bigint_hex(label, &current_product);
+    
+    free_bigint(&current_product);
+    printf("\n");
+    
+    return 0;
+}
+
 int main() {
     printf("Collector Module Demo (Real-time Processing)\n");
     printf("=========================================\n\n");
@@ -37,50 +69,19 @@ int main() {
         return 1;
     }
     
-    printf("\nSimulating real-time processing of auxiliary values...\n");
+    printf("\nFetching and processing auxiliary values from server...\n");
     
-    // Simulate receiving auxiliary values from users in real-time
-    // In a real system, these would come from network requests as voters vote
-    const int num_users = 3;
+    // Fetch auxiliary values from the server and process them
+    const int num_users = 5;
+    int processed = fetch_auxiliary_values(num_users, process_and_print_aux);
     
-    for (int i = 0; i < num_users; i++) {
-        // In a real system, these would be computed as pk_A^sk_i mod N^2
-        // where sk_i is the user's private key
-        uint8_t aux_data[16];
-        for (int j = 0; j < 16; j++) {
-            aux_data[j] = (uint8_t)(i * 16 + j);
-        }
-        BigInt aux_i = create_bigint(aux_data, sizeof(aux_data));
-        
-        char label[32];
-        sprintf(label, "Received auxiliary value from user %d", i + 1);
-        print_bigint_hex(label, &aux_i);
-        
-        // Process this auxiliary value in real-time
-        if (process_auxiliary_value_realtime(&aux_i) != 0) {
-            printf("Failed to process auxiliary value from user %d\n", i + 1);
-            free_bigint(&aux_i);
-            collector_cleanup();
-            return 1;
-        }
-        
-        // Get the current running product after processing this aux_i
-        BigInt current_product;
-        if (get_current_auxiliary_product(&current_product) != 0) {
-            printf("Failed to get current auxiliary product\n");
-            free_bigint(&aux_i);
-            collector_cleanup();
-            return 1;
-        }
-        
-        sprintf(label, "Current running product after user %d", i + 1);
-        print_bigint_hex(label, &current_product);
-        
-        free_bigint(&aux_i);
-        free_bigint(&current_product);
-        
-        printf("\n");
+    if (processed < 0) {
+        printf("Failed to fetch auxiliary values from server\n");
+        collector_cleanup();
+        return 1;
     }
+    
+    printf("Successfully processed %d auxiliary values\n\n", processed);
     
     // Get the final auxiliary value
     BigInt final_aux;
