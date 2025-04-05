@@ -1,9 +1,9 @@
 #include <emscripten.h>
 #include "bigint_ops.h"
+#include <stdio.h>
+#include <string.h>
 
-// Define the exported functions for JavaScript to call
-
-// Function to encrypt a vote using the provided parameters
+// Restore EMSCRIPTEN_KEEPALIVE macros
 EMSCRIPTEN_KEEPALIVE
 int encrypt_vote(const uint8_t* vote_array, size_t vote_length,
                 const uint8_t* n_data, size_t n_length,
@@ -75,4 +75,10 @@ void free_bigint_ptr(BigInt* big_int) {
         free_bigint(big_int);
         free(big_int);
     }
+}
+
+// Add this main function
+int main() {
+    // Empty main function for WebAssembly compilation
+    return 0;
 }

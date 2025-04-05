@@ -36,12 +36,16 @@ export async function loadWasmModule(): Promise<EncryptionModule> {
   }
 
   isLoading = true;
+  declare function createModule(): Promise<EncryptionModule>;
+
   loadPromise = new Promise((resolve, reject) => {
-    // In a real implementation, you would use Emscripten to compile the C code to WebAssembly
-    // and load it here. For now, we'll just mock it for demonstration purposes.
-    import("./encryption.wasm")
+    // Load the JavaScript glue file which will load the .wasm file
+    import("./encryption.js")
+      .then((EmscriptenModule) => {
+        return EmscriptenModule.default();
+      })
       .then((module) => {
-        wasmModule = module as unknown as EncryptionModule;
+        wasmModule = module as EncryptionModule;
         isLoading = false;
         resolve(wasmModule);
       })
