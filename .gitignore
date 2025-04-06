@@ -9,3 +9,7 @@ wallet.txt
 dist
 .env
 TODO.md
+package-lock.json
+yarn.lock
+cargo.lock
+target
