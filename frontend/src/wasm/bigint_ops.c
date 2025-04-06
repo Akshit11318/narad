@@ -2,7 +2,16 @@
 #include <string.h>
 #include <stdlib.h>
 
-// Create a new BigInt from data
+/**
+ * @brief Create a new BigInt from data
+ *
+ * This function allocates memory for a new BigInt and copies the provided data.
+ * The caller is responsible for freeing the memory using free_bigint when done.
+ *
+ * @param data Pointer to the byte array containing the big integer data
+ * @param length Length of the data in bytes
+ * @return A new BigInt structure containing a copy of the provided data
+ */
 BigInt create_bigint(const uint8_t* data, size_t length) {
     BigInt result;
     result.length = length;
@@ -13,7 +22,14 @@ BigInt create_bigint(const uint8_t* data, size_t length) {
     return result;
 }
 
-// Free the memory allocated for a BigInt
+/**
+ * @brief Free the memory allocated for a BigInt
+ *
+ * This function releases the memory allocated for a BigInt's data and
+ * resets its length to zero. It safely handles NULL pointers.
+ *
+ * @param big_int Pointer to the BigInt to free
+ */
 void free_bigint(BigInt* big_int) {
     if (big_int && big_int->data) {
         free(big_int->data);
@@ -22,7 +38,19 @@ void free_bigint(BigInt* big_int) {
     }
 }
 
-// Implementation of modular exponentiation using the square-and-multiply algorithm
+/**
+ * @brief Implementation of modular exponentiation using the square-and-multiply algorithm
+ *
+ * This function calculates (base^exponent) mod modulus efficiently using the
+ * square-and-multiply algorithm, which processes the exponent bit by bit.
+ * The time complexity is O(log n) where n is the number of bits in the exponent.
+ *
+ * @param base The base value to be raised to a power
+ * @param exponent The power to which the base is raised
+ * @param modulus The modulus for the operation
+ * @param result Pointer to store the result of (base^exponent) mod modulus
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
 int modular_exponentiation(const BigInt* base, const BigInt* exponent, 
                           const BigInt* modulus, BigInt* result) {
     if (!base || !exponent || !modulus || !result) {
@@ -66,7 +94,19 @@ int modular_exponentiation(const BigInt* base, const BigInt* exponent,
     return 0;
 }
 
-// Implementation of modular multiplication
+/**
+ * @brief Implementation of modular multiplication
+ *
+ * This function calculates (a * b) mod modulus. The current implementation
+ * is simplified for demonstration purposes and would need to be replaced with
+ * a more efficient algorithm in a production environment.
+ *
+ * @param a First operand for multiplication
+ * @param b Second operand for multiplication
+ * @param modulus The modulus for the operation
+ * @param result Pointer to store the result of (a * b) mod modulus
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
 int modular_multiplication(const BigInt* a, const BigInt* b, 
                            const BigInt* modulus, BigInt* result) {
     if (!a || !b || !modulus || !result) {
@@ -94,7 +134,18 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
     return 0;
 }
 
-// Implementation of plain multiplication without modular reduction
+/**
+ * @brief Implementation of plain multiplication without modular reduction
+ *
+ * This function performs arbitrary precision multiplication of two BigInt values
+ * using the standard long multiplication algorithm. The result can be of length
+ * up to a->length + b->length bytes.
+ *
+ * @param a First operand for multiplication
+ * @param b Second operand for multiplication
+ * @param result Pointer to store the product a * b
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
 int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result) {
     if (!a || !b || !result) {
         return -1; // Invalid parameters
@@ -145,7 +196,18 @@ int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result) {
     return 0;
 }
 
-// Implementation of modular addition
+/**
+ * @brief Implementation of modular addition
+ *
+ * This function calculates (a + b) mod modulus. It first performs the addition
+ * and then applies the modulus using a subtraction-based approach.
+ *
+ * @param a First operand for addition
+ * @param b Second operand for addition
+ * @param modulus The modulus for the operation
+ * @param result Pointer to store the result of (a + b) mod modulus
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
 int modular_addition(const BigInt* a, const BigInt* b, 
                       const BigInt* modulus, BigInt* result) {
     if (!a || !b || !modulus || !result) {

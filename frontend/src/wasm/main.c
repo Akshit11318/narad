@@ -1,6 +1,7 @@
 #include <emscripten.h>
 #include "bigint_ops.h"
 #include "vote_encrypt.h"
+#include "crypto_voting.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -124,6 +125,59 @@ size_t get_encrypted_vote_size_wrapper() {
 EMSCRIPTEN_KEEPALIVE
 int clear_encrypted_vote_wrapper() {
     return clear_encrypted_vote();
+}
+
+// Wrapper for generate_secret_key function
+EMSCRIPTEN_KEEPALIVE
+int generate_secret_key_wrapper(const uint8_t* n_data, size_t n_length) {
+    return generate_secret_key(n_data, n_length);
+}
+
+// Wrapper for compute_aggregator_public_key function
+EMSCRIPTEN_KEEPALIVE
+int compute_aggregator_public_key_wrapper(const uint8_t* h_data, size_t h_length,
+                                        const uint8_t* sk_a_data, size_t sk_a_length,
+                                        const uint8_t* n_data, size_t n_length) {
+    return compute_aggregator_public_key(h_data, h_length, sk_a_data, sk_a_length, n_data, n_length);
+}
+
+// Wrapper for compute_auxiliary_key function
+EMSCRIPTEN_KEEPALIVE
+int compute_auxiliary_key_wrapper(const uint8_t* n_data, size_t n_length) {
+    return compute_auxiliary_key(n_data, n_length);
+}
+
+// Wrapper for encrypt_vote_paillier function
+EMSCRIPTEN_KEEPALIVE
+int encrypt_vote_paillier_wrapper(const uint8_t* vote_data, size_t vote_length,
+                                 const uint8_t* h_data, size_t h_length,
+                                 const uint8_t* n_data, size_t n_length,
+                                 uint8_t* result, size_t result_length) {
+    return encrypt_vote_paillier(vote_data, vote_length, h_data, h_length, n_data, n_length, result, result_length);
+}
+
+// Wrapper for get_secret_key function
+EMSCRIPTEN_KEEPALIVE
+int get_secret_key_wrapper(uint8_t* result, size_t result_length) {
+    return get_secret_key(result, result_length);
+}
+
+// Wrapper for get_aggregator_public_key function
+EMSCRIPTEN_KEEPALIVE
+int get_aggregator_public_key_wrapper(uint8_t* result, size_t result_length) {
+    return get_aggregator_public_key(result, result_length);
+}
+
+// Wrapper for get_auxiliary_key function
+EMSCRIPTEN_KEEPALIVE
+int get_auxiliary_key_wrapper(uint8_t* result, size_t result_length) {
+    return get_auxiliary_key(result, result_length);
+}
+
+// Wrapper for clear_crypto_params function
+EMSCRIPTEN_KEEPALIVE
+int clear_crypto_params_wrapper() {
+    return clear_crypto_params();
 }
 
 // Add this main function

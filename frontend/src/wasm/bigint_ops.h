@@ -68,4 +68,10 @@ int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result);
 int modular_addition(const BigInt* a, const BigInt* b, 
                       const BigInt* modulus, BigInt* result);
 
+/**
+ * @brief Free the memory allocated for a BigInt pointer
+ * @param big_int Pointer to the BigInt pointer to free
+ */
+void free_bigint_ptr(BigInt* big_int);
+
 #endif // BIGINT_OPS_H

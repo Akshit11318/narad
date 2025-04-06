@@ -1,4 +1,4 @@
-// WebAssembly module wrapper for encryption functions
+// WebAssembly module wrapper for encryption and cryptographic voting functions
 
 interface EncryptionModule {
   _malloc(size: number): number;
@@ -15,6 +15,23 @@ interface EncryptionModule {
     resultPtr: number,
     resultLength: number
   ): number;
+  _generate_secret_key_wrapper(nPtr: number, nLength: number): number;
+  _compute_aggregator_public_key_wrapper(
+    hPtr: number, hLength: number,
+    skAPtr: number, skALength: number,
+    nPtr: number, nLength: number
+  ): number;
+  _compute_auxiliary_key_wrapper(nPtr: number, nLength: number): number;
+  _encrypt_vote_paillier_wrapper(
+    votePtr: number, voteLength: number,
+    hPtr: number, hLength: number,
+    nPtr: number, nLength: number,
+    resultPtr: number, resultLength: number
+  ): number;
+  _get_secret_key_wrapper(resultPtr: number, resultLength: number): number;
+  _get_aggregator_public_key_wrapper(resultPtr: number, resultLength: number): number;
+  _get_auxiliary_key_wrapper(resultPtr: number, resultLength: number): number;
+  _clear_crypto_params_wrapper(): number;
   HEAPU8: Uint8Array;
 }
 
@@ -152,4 +169,248 @@ export async function encryptVote(
     module._free(skaWasm.ptr);
     module._free(resultPtr);
   }
+}
+
+/**
+ * Generate a random secret key for the client
+ * @param n The modulus N parameter
+ * @returns 0 on success, negative value on error
+ */
+export async function generateSecretKey(
+  n: Uint8Array | number[]
+): Promise<number> {
+  const module = await loadWasmModule();
+  console.log(module)
+  // Convert parameters to Uint8Array if they're not already
+  const nUint8 = n instanceof Uint8Array ? n : new Uint8Array(n);
+
+  // Copy arrays to WebAssembly memory
+  const nWasm = copyArrayToWasm(module, nUint8);
+
+  try {
+    // Call the WebAssembly function
+    return module._generate_secret_key_wrapper(
+      nWasm.ptr,
+      nWasm.length
+    );
+  } finally {
+    // Free allocated memory
+    module._free(nWasm.ptr);
+  }
+}
+
+/**
+ * Compute the aggregator's public key
+ * @param h The base element H parameter
+ * @param skA The aggregator's secret key
+ * @param n The modulus N parameter
+ * @returns 0 on success, negative value on error
+ */
+export async function computeAggregatorPublicKey(
+  h: Uint8Array | number[],
+  skA: Uint8Array | number[],
+  n: Uint8Array | number[]
+): Promise<number> {
+  const module = await loadWasmModule();
+
+  // Convert parameters to Uint8Array if they're not already
+  const hUint8 = h instanceof Uint8Array ? h : new Uint8Array(h);
+  const skAUint8 = skA instanceof Uint8Array ? skA : new Uint8Array(skA);
+  const nUint8 = n instanceof Uint8Array ? n : new Uint8Array(n);
+
+  // Copy arrays to WebAssembly memory
+  const hWasm = copyArrayToWasm(module, hUint8);
+  const skAWasm = copyArrayToWasm(module, skAUint8);
+  const nWasm = copyArrayToWasm(module, nUint8);
+
+  try {
+    // Call the WebAssembly function
+    return module._compute_aggregator_public_key_wrapper(
+      hWasm.ptr,
+      hWasm.length,
+      skAWasm.ptr,
+      skAWasm.length,
+      nWasm.ptr,
+      nWasm.length
+    );
+  } finally {
+    // Free allocated memory
+    module._free(hWasm.ptr);
+    module._free(skAWasm.ptr);
+    module._free(nWasm.ptr);
+  }
+}
+
+/**
+ * Compute the auxiliary key
+ * @param n The modulus N parameter
+ * @returns 0 on success, negative value on error
+ */
+export async function computeAuxiliaryKey(
+  n: Uint8Array | number[]
+): Promise<number> {
+  const module = await loadWasmModule();
+
+  // Convert parameters to Uint8Array if they're not already
+  const nUint8 = n instanceof Uint8Array ? n : new Uint8Array(n);
+
+  // Copy arrays to WebAssembly memory
+  const nWasm = copyArrayToWasm(module, nUint8);
+
+  try {
+    // Call the WebAssembly function
+    return module._compute_auxiliary_key_wrapper(
+      nWasm.ptr,
+      nWasm.length
+    );
+  } finally {
+    // Free allocated memory
+    module._free(nWasm.ptr);
+  }
+}
+
+/**
+ * Encrypt a vote using Paillier encryption
+ * @param vote The vote data
+ * @param h The base element H parameter
+ * @param n The modulus N parameter
+ * @returns The encrypted vote
+ */
+export async function encryptVotePaillier(
+  vote: Uint8Array | number[],
+  h: Uint8Array | number[],
+  n: Uint8Array | number[]
+): Promise<Uint8Array> {
+  const module = await loadWasmModule();
+
+  // Convert parameters to Uint8Array if they're not already
+  const voteUint8 = vote instanceof Uint8Array ? vote : new Uint8Array(vote);
+  const hUint8 = h instanceof Uint8Array ? h : new Uint8Array(h);
+  const nUint8 = n instanceof Uint8Array ? n : new Uint8Array(n);
+
+  // Copy arrays to WebAssembly memory
+  const voteWasm = copyArrayToWasm(module, voteUint8);
+  const hWasm = copyArrayToWasm(module, hUint8);
+  const nWasm = copyArrayToWasm(module, nUint8);
+
+  // Allocate memory for the result (assuming result size is same as n squared)
+  const resultLength = nUint8.length * 2; // Result might be larger than n
+  const resultPtr = module._malloc(resultLength);
+
+  try {
+    // Call the WebAssembly function
+    const result = module._encrypt_vote_paillier_wrapper(
+      voteWasm.ptr,
+      voteWasm.length,
+      hWasm.ptr,
+      hWasm.length,
+      nWasm.ptr,
+      nWasm.length,
+      resultPtr,
+      resultLength
+    );
+
+    if (result !== 0) {
+      throw new Error(`Encryption failed with error code: ${result}`);
+    }
+
+    // Copy the result back to JavaScript
+    return copyArrayFromWasm(module, resultPtr, resultLength);
+  } finally {
+    // Free allocated memory
+    module._free(voteWasm.ptr);
+    module._free(hWasm.ptr);
+    module._free(nWasm.ptr);
+    module._free(resultPtr);
+  }
+}
+
+/**
+ * Get the client's secret key
+ * @returns The secret key
+ */
+export async function getSecretKey(): Promise<Uint8Array> {
+  const module = await loadWasmModule();
+
+  // Allocate memory for the result (assuming a reasonable size)
+  const resultLength = 256; // Adjust based on expected key size
+  const resultPtr = module._malloc(resultLength);
+
+  try {
+    // Call the WebAssembly function
+    const keySize = module._get_secret_key_wrapper(resultPtr, resultLength);
+
+    if (keySize <= 0) {
+      throw new Error(`Failed to get secret key: ${keySize}`);
+    }
+
+    // Copy the result back to JavaScript
+    return copyArrayFromWasm(module, resultPtr, keySize);
+  } finally {
+    // Free allocated memory
+    module._free(resultPtr);
+  }
+}
+
+/**
+ * Get the aggregator's public key
+ * @returns The public key
+ */
+export async function getAggregatorPublicKey(): Promise<Uint8Array> {
+  const module = await loadWasmModule();
+
+  // Allocate memory for the result (assuming a reasonable size)
+  const resultLength = 256; // Adjust based on expected key size
+  const resultPtr = module._malloc(resultLength);
+
+  try {
+    // Call the WebAssembly function
+    const keySize = module._get_aggregator_public_key_wrapper(resultPtr, resultLength);
+
+    if (keySize <= 0) {
+      throw new Error(`Failed to get aggregator public key: ${keySize}`);
+    }
+
+    // Copy the result back to JavaScript
+    return copyArrayFromWasm(module, resultPtr, keySize);
+  } finally {
+    // Free allocated memory
+    module._free(resultPtr);
+  }
+}
+
+/**
+ * Get the auxiliary key
+ * @returns The auxiliary key
+ */
+export async function getAuxiliaryKey(): Promise<Uint8Array> {
+  const module = await loadWasmModule();
+
+  // Allocate memory for the result (assuming a reasonable size)
+  const resultLength = 256; // Adjust based on expected key size
+  const resultPtr = module._malloc(resultLength);
+
+  try {
+    // Call the WebAssembly function
+    const keySize = module._get_auxiliary_key_wrapper(resultPtr, resultLength);
+
+    if (keySize <= 0) {
+      throw new Error(`Failed to get auxiliary key: ${keySize}`);
+    }
+
+    // Copy the result back to JavaScript
+    return copyArrayFromWasm(module, resultPtr, keySize);
+  } finally {
+    // Free allocated memory
+    module._free(resultPtr);
+  }
+}
+
+/**
+ * Clear all cryptographic parameters
+ * @returns 0 on success, negative value on error
+ */
+export async function clearCryptoParams(): Promise<number> {
+  const module = await loadWasmModule();
+  return module._clear_crypto_params_wrapper();
 }
