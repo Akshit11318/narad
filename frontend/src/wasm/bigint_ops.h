@@ -57,4 +57,15 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
  */
 int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result);
 
+/**
+ * @brief Perform modular addition: result = (a + b) mod modulus
+ * @param a First operand
+ * @param b Second operand
+ * @param modulus The modulus value
+ * @param result Pointer to store the result
+ * @return 0 on success, non-zero on failure
+ */
+int modular_addition(const BigInt* a, const BigInt* b, 
+                      const BigInt* modulus, BigInt* result);
+
 #endif // BIGINT_OPS_H

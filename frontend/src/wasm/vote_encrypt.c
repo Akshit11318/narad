@@ -53,7 +53,7 @@ BigInt pack_votes(const uint32_t* votes, size_t vote_count) {
                 size_t result_bit_pos = vote_bit_position + bit;
                 size_t result_byte = result_bit_pos / 8;
                 size_t result_bit = result_bit_pos % 8;
-                
+
                 if (result_byte < MAX_RESULT_BYTES) {
                     result_bytes[result_byte] |= (1 << result_bit);
                 }

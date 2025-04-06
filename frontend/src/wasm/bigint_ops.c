@@ -144,3 +144,74 @@ int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result) {
     free(product);
     return 0;
 }
+
+// Implementation of modular addition
+int modular_addition(const BigInt* a, const BigInt* b, 
+                      const BigInt* modulus, BigInt* result) {
+    if (!a || !b || !modulus || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Calculate the maximum possible length for the sum
+    size_t max_length = (a->length > b->length ? a->length : b->length) + 1;
+    
+    // Allocate memory for the temporary sum
+    uint8_t* sum = (uint8_t*)calloc(max_length, 1);
+    if (!sum) {
+        return -2; // Memory allocation failure
+    }
+    
+    // Perform addition with carry
+    uint16_t carry = 0;
+    size_t i;
+    for (i = 0; i < max_length - 1; i++) {
+        uint16_t a_val = (i < a->length) ? a->data[i] : 0;
+        uint16_t b_val = (i < b->length) ? b->data[i] : 0;
+        uint16_t temp = a_val + b_val + carry;
+        sum[i] = temp & 0xFF;
+        carry = temp >> 8;
+    }
+    sum[i] = carry;
+    
+    // Remove leading zeros
+    size_t actual_length = max_length;
+    while (actual_length > 1 && sum[actual_length - 1] == 0) {
+        actual_length--;
+    }
+    
+    // Create a temporary BigInt for the sum
+    BigInt temp_sum = create_bigint(sum, actual_length);
+    free(sum);
+    
+    // Perform modulo operation
+    // For now, we'll use a simple subtraction-based approach
+    while (temp_sum.length > modulus->length || 
+           (temp_sum.length == modulus->length && 
+            memcmp(temp_sum.data, modulus->data, modulus->length) >= 0)) {
+        uint16_t borrow = 0;
+        for (i = 0; i < temp_sum.length; i++) {
+            uint16_t mod_val = (i < modulus->length) ? modulus->data[i] : 0;
+            int16_t diff = temp_sum.data[i] - mod_val - borrow;
+            if (diff < 0) {
+                diff += 256;
+                borrow = 1;
+            } else {
+                borrow = 0;
+            }
+            temp_sum.data[i] = diff;
+        }
+        
+        // Remove leading zeros after subtraction
+        while (temp_sum.length > 1 && temp_sum.data[temp_sum.length - 1] == 0) {
+            temp_sum.length--;
+        }
+    }
+    
+    // Copy the result
+    *result = create_bigint(temp_sum.data, temp_sum.length);
+    
+    // Clean up
+    free_bigint(&temp_sum);
+    
+    return 0;
+}

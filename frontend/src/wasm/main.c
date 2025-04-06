@@ -22,7 +22,7 @@ int encrypt_vote(const uint8_t* vote_array, size_t vote_length,
     BigInt n_squared;
     multiply_bigint(&n, &n, &n_squared);
     
-    // Perform the encryption: result = h^vote * ska^n mod n^2
+    // Perform the encryption: result 
     BigInt h_vote;
     modular_exponentiation(&h, &vote, &n_squared, &h_vote);
     
@@ -76,6 +76,54 @@ void free_bigint_ptr(BigInt* big_int) {
         free_bigint(big_int);
         free(big_int);
     }
+}
+
+// Wrapper for pack_votes function
+EMSCRIPTEN_KEEPALIVE
+BigInt* pack_votes_wrapper(const uint32_t* votes, size_t vote_count) {
+    BigInt packed = pack_votes(votes, vote_count);
+    BigInt* result = (BigInt*)malloc(sizeof(BigInt));
+    *result = packed;
+    return result;
+}
+
+// Wrapper for pack_and_encrypt_votes function
+EMSCRIPTEN_KEEPALIVE
+int pack_and_encrypt_votes_wrapper(const uint32_t* votes, size_t vote_count,
+                                 const uint8_t* n_data, size_t n_length,
+                                 const uint8_t* h_data, size_t h_length,
+                                 const uint8_t* ska_data, size_t ska_length,
+                                 uint8_t* result, size_t result_length) {
+    return pack_and_encrypt_votes(votes, vote_count, n_data, n_length, h_data, h_length,
+                                 ska_data, ska_length, result, result_length);
+}
+
+// Wrapper for encrypt_and_store function
+EMSCRIPTEN_KEEPALIVE
+int encrypt_and_store_wrapper(const uint32_t* votes, size_t vote_count,
+                             const uint8_t* n_data, size_t n_length,
+                             const uint8_t* h_data, size_t h_length,
+                             const uint8_t* ska_data, size_t ska_length) {
+    return encrypt_and_store(votes, vote_count, n_data, n_length, h_data, h_length,
+                            ska_data, ska_length);
+}
+
+// Wrapper for get_encrypted_vote function
+EMSCRIPTEN_KEEPALIVE
+int get_encrypted_vote_wrapper(uint8_t* result, size_t result_length) {
+    return get_encrypted_vote(result, result_length);
+}
+
+// Wrapper for get_encrypted_vote_size function
+EMSCRIPTEN_KEEPALIVE
+size_t get_encrypted_vote_size_wrapper() {
+    return get_encrypted_vote_size();
+}
+
+// Wrapper for clear_encrypted_vote function
+EMSCRIPTEN_KEEPALIVE
+int clear_encrypted_vote_wrapper() {
+    return clear_encrypted_vote();
 }
 
 // Add this main function
