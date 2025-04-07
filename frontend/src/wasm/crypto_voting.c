@@ -392,6 +392,7 @@ int clear_crypto_params() {
  * @param h_len Length of H in bytes
  * @return 0 on success, negative value on error
  */
+EMSCRIPTEN_KEEPALIVE
 int initialize_crypto_params(const uint8_t* n, size_t n_len, const uint8_t* h, size_t h_len) {
     // Clear any existing parameters
     clear_crypto_params();
@@ -430,10 +431,3 @@ int initialize_crypto_params(const uint8_t* n, size_t n_len, const uint8_t* h, s
     return 0;
 }
 
-/**
- * Export the initialization function to JavaScript
- */
-EMSCRIPTEN_KEEPALIVE
-int initialize_crypto_params_wrapper(const uint8_t* n, size_t n_len, const uint8_t* h, size_t h_len) {
-    return initialize_crypto_params(n, n_len, h, h_len);
-}

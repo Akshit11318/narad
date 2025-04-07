@@ -1,5 +1,6 @@
 #include "vote_encrypt.h"
 #include "bigint_ops.h"
+#include "crypto_voting.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -94,7 +95,6 @@ BigInt pack_votes(const uint32_t* votes, size_t vote_count) {
 int pack_and_encrypt_votes(const uint32_t* votes, size_t vote_count,
                            const uint8_t* n_data, size_t n_length,
                            const uint8_t* h_data, size_t h_length,
-                           const uint8_t* ska_data, size_t ska_length,
                            uint8_t* result, size_t result_length) {
     // Step 1: Pack the votes into a single BigInt
     BigInt packed_votes = pack_votes(votes, vote_count);
@@ -106,15 +106,12 @@ int pack_and_encrypt_votes(const uint32_t* votes, size_t vote_count,
     }
     
     // Step 3: Encrypt the packed votes
-    extern int encrypt_vote(const uint8_t*, size_t, const uint8_t*, size_t, 
-                            const uint8_t*, size_t, const uint8_t*, size_t, 
-                            uint8_t*, size_t);
     
-    int encrypt_result = encrypt_vote(
+    
+    int encrypt_result = encrypt_vote_paillier(
         packed_votes.data, packed_votes.length,
-        n_data, n_length,
         h_data, h_length,
-        ska_data, ska_length,
+        n_data, n_length,
         result, result_length
     );
     
@@ -136,14 +133,13 @@ static size_t g_encrypted_vote_size = 0;
  * @param n_length Length of n_data
  * @param h_data Public key h component
  * @param h_length Length of h_data
- * @param ska_data Secret random key
- * @param ska_length Length of ska_data
+
  * @return 0 on success, negative value on error
  */
 int encrypt_and_store(const uint32_t* votes, size_t vote_count,
                       const uint8_t* n_data, size_t n_length,
-                      const uint8_t* h_data, size_t h_length,
-                      const uint8_t* ska_data, size_t ska_length) {
+                      const uint8_t* h_data, size_t h_length
+                      ) {
     // Clear any existing encrypted vote
     clear_encrypted_vote();
     
@@ -162,7 +158,6 @@ int encrypt_and_store(const uint32_t* votes, size_t vote_count,
         votes, vote_count,
         n_data, n_length,
         h_data, h_length,
-        ska_data, ska_length,
         g_encrypted_vote, expected_size
     );
     
