@@ -21,8 +21,6 @@ BigInt pack_votes(const uint32_t* votes, size_t vote_count);
  * @param n_length Length of n_data
  * @param h_data Public key h component
  * @param h_length Length of h_data
- * @param ska_data Secret random key
- * @param ska_length Length of ska_data
  * @param result Buffer to store the encrypted result
  * @param result_length Length of the result buffer
  * @return 0 on success, negative value on error
@@ -30,7 +28,6 @@ BigInt pack_votes(const uint32_t* votes, size_t vote_count);
 int pack_and_encrypt_votes(const uint32_t* votes, size_t vote_count,
                            const uint8_t* n_data, size_t n_length,
                            const uint8_t* h_data, size_t h_length,
-                           const uint8_t* ska_data, size_t ska_length,
                            uint8_t* result, size_t result_length);
 
 /**
@@ -41,14 +38,12 @@ int pack_and_encrypt_votes(const uint32_t* votes, size_t vote_count,
  * @param n_length Length of n_data
  * @param h_data Public key h component
  * @param h_length Length of h_data
- * @param ska_data Secret random key
- * @param ska_length Length of ska_data
  * @return 0 on success, negative value on error
  */
 int encrypt_and_store(const uint32_t* votes, size_t vote_count,
                       const uint8_t* n_data, size_t n_length,
-                      const uint8_t* h_data, size_t h_length,
-                      const uint8_t* ska_data, size_t ska_length);
+                      const uint8_t* h_data, size_t h_length
+                      );
 
 /**
  * @brief Retrieve the stored encrypted vote (xi)

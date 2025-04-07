@@ -91,19 +91,7 @@ int get_auxiliary_key(uint8_t* result, size_t result_length);
 int clear_crypto_params();
 
 // WASM wrapper function declarations
-int initialize_crypto_params_wrapper(const uint8_t* n, size_t n_len, const uint8_t* h, size_t h_len);
-int generate_secret_key_wrapper(const uint8_t* n_data, size_t n_length);
-int compute_aggregator_public_key_wrapper(const uint8_t* h_data, size_t h_length,
-                                         const uint8_t* sk_a_data, size_t sk_a_length,
-                                         const uint8_t* n_data, size_t n_length);
-int compute_auxiliary_key_wrapper(const uint8_t* n_data, size_t n_length);
-int encrypt_vote_paillier_wrapper(const uint8_t* vote_data, size_t vote_length,
-                                 const uint8_t* h_data, size_t h_length,
-                                 const uint8_t* n_data, size_t n_length,
-                                 uint8_t* result, size_t result_length);
-int get_secret_key_wrapper(uint8_t* result, size_t result_length);
-int get_aggregator_public_key_wrapper(uint8_t* result, size_t result_length);
-int get_auxiliary_key_wrapper(uint8_t* result, size_t result_length);
-int clear_crypto_params_wrapper();
+int initialize_crypto_params(const uint8_t* n, size_t n_len, const uint8_t* h, size_t h_len);
+
 
 #endif /* CRYPTO_VOTING_H */
