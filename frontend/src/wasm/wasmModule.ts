@@ -53,24 +53,85 @@ export async function loadWasmModule(): Promise<EncryptionModule> {
   }
 
   isLoading = true;
-  declare function createModule(): Promise<EncryptionModule>;
+// Declare the global window interface to include createEncryptionModule
+declare global {
+  interface Window {
+    createEncryptionModule: () => Promise<EncryptionModule>;
+  }
+}
 
   loadPromise = new Promise((resolve, reject) => {
     // Load the JavaScript glue file which will load the .wasm file
-    import("./encryption.js")
-      .then((EmscriptenModule) => {
-        return EmscriptenModule.default();
-      })
-      .then((module) => {
-        wasmModule = module as EncryptionModule;
-        isLoading = false;
-        resolve(wasmModule);
-      })
-      .catch((error) => {
-        console.error("Failed to load WebAssembly module:", error);
-        isLoading = false;
-        reject(error);
-      });
+    try {
+      // Access the global createEncryptionModule function that was loaded via script tag
+      if (typeof window.createEncryptionModule === 'function') {
+        console.log('Found createEncryptionModule in window scope');
+        window.createEncryptionModule()
+          .then((module) => {
+            wasmModule = module as EncryptionModule;
+            
+            // Debug: Log all exported functions from the module
+            console.log('WebAssembly module loaded successfully');
+            console.log('Available functions in the module:', Object.keys(wasmModule)
+              .filter(key => typeof wasmModule[key] === 'function' && key.startsWith('_'))
+              .sort());
+            
+            isLoading = false;
+            resolve(wasmModule);
+          })
+          .catch((error) => {
+            console.error("Failed to initialize WebAssembly module:", error);
+            isLoading = false;
+            reject(error);
+          });
+      } else {
+        // Fallback if script tag loading failed - use a more compatible approach
+        console.warn('createEncryptionModule not found in window scope, trying alternative approach');
+        
+        // Create a script element and append it to the document
+        const scriptElement = document.createElement('script');
+        scriptElement.src = '/assets/encryption.js';
+        scriptElement.onload = () => {
+          // Once loaded, try to access the createEncryptionModule function again
+          if (typeof window.createEncryptionModule === 'function') {
+            console.log('Successfully loaded createEncryptionModule via script element');
+            window.createEncryptionModule()
+              .then((module) => {
+                wasmModule = module as EncryptionModule;
+                console.log('WebAssembly module loaded via script element');
+                console.log('Available functions:', Object.keys(wasmModule)
+                  .filter(key => typeof wasmModule[key] === 'function' && key.startsWith('_'))
+                  .sort());
+                
+                isLoading = false;
+                resolve(wasmModule);
+              })
+              .catch((error) => {
+                console.error("Failed to initialize WebAssembly module via script element:", error);
+                isLoading = false;
+                reject(error);
+              });
+          } else {
+            const error = new Error('Failed to load WebAssembly module: createEncryptionModule function not found');
+            console.error(error);
+            isLoading = false;
+            reject(error);
+          }
+        };
+        
+        scriptElement.onerror = (error) => {
+          console.error("Failed to load encryption.js script:", error);
+          isLoading = false;
+          reject(new Error('Failed to load encryption.js script'));
+        };
+        
+        document.head.appendChild(scriptElement);
+      }
+    } catch (error) {
+      console.error("Error during WebAssembly module loading:", error);
+      isLoading = false;
+      reject(error);
+    }
   });
 
   return loadPromise;

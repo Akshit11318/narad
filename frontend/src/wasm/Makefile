@@ -1,6 +1,7 @@
-
-# Output file name
-OUTPUT = encryption.js
+# Output file name and path
+OUTPUT_DIR = ../../public/assets
+OUTPUT_NAME = encryption
+OUTPUT = $(OUTPUT_DIR)/$(OUTPUT_NAME).js
 
 # Source files
 SOURCES = main.c bigint_ops.c vote_encrypt.c crypto_voting.c
@@ -16,13 +17,18 @@ CFLAGS = -O3 -s WASM=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] \
           '_generate_secret_key_wrapper', '_compute_aggregator_public_key_wrapper', '_compute_auxiliary_key_wrapper', \
           '_encrypt_vote_paillier_wrapper', '_get_secret_key_wrapper', '_get_aggregator_public_key_wrapper', \
           '_get_auxiliary_key_wrapper', '_clear_crypto_params_wrapper']" \
-         -s ALLOW_MEMORY_GROWTH=1
+         -s ALLOW_MEMORY_GROWTH=1 -s MODULARIZE=1 -s EXPORT_ES6=0 \
+         -s EXPORT_NAME="createEncryptionModule"
 
 # Build rule
-all: $(OUTPUT)
+all: $(OUTPUT_DIR) $(OUTPUT)
+
+$(OUTPUT_DIR):
+	mkdir -p $(OUTPUT_DIR)
 
 $(OUTPUT): $(SOURCES)
 	$(EMCC) $(CFLAGS) -o $(OUTPUT) $(SOURCES)
+	@echo "WebAssembly module compiled to $(OUTPUT) and $(OUTPUT).wasm"
 
 # Clean rule
 clean:
