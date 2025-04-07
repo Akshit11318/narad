@@ -48,9 +48,16 @@ int aggregator_init(AggregatorParams* params, const BigInt* N, const BigInt* H, 
     free(n_squared_data);
     
     // Calculate sk_A mod N
-    // For simplicity, we'll just copy sk_A for now
-    // In a real implementation, this would compute sk_A mod N
-    params->sk_A_mod_N = create_bigint(sk_A->data, sk_A->length);
+    BigInt sk_A_mod_N_result;
+    if (bigint_mod(sk_A, &params->N, &sk_A_mod_N_result) != 0) {
+        // Clean up and return error
+        free_bigint(&params->N);
+        free_bigint(&params->N_squared);
+        free_bigint(&params->H);
+        free_bigint(&params->sk_A);
+        return -3; // Failed to compute sk_A mod N
+    }
+    params->sk_A_mod_N = sk_A_mod_N_result;
     
     // Calculate (sk_A mod N)^-1
     if (modular_inverse(&params->sk_A_mod_N, &params->N, &params->sk_A_inv) != 0) {
@@ -274,28 +281,4 @@ int aggregator_cleanup(AggregatorParams* params) {
     free_bigint(&params->sk_A_inv);
     
     return 0;
-}
-
-BigInt create_bigint(const uint8_t* data, size_t length) {
-    BigInt result;
-    
-    result.length = length;
-    result.data = (uint8_t*)malloc(length);
-    
-    if (result.data) {
-        memcpy(result.data, data, length);
-    } else {
-        // Handle allocation failure
-        result.length = 0;
-    }
-    
-    return result;
-}
-
-void free_bigint(BigInt* big_int) {
-    if (big_int && big_int->data) {
-        free(big_int->data);
-        big_int->data = NULL;
-        big_int->length = 0;
-    }
 }

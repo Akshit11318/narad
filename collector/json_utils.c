@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "json_utils.h"
+#include "bigint_ops.h"
 
 // Helper function to find a key in JSON and return its value
 static char* find_json_value(const char* json_str, const char* key) {
@@ -30,43 +31,6 @@ static int hex_char_to_int(char c) {
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
     return -1;
-}
-
-int hex_string_to_bigint(const char* hex_str, BigInt* big_int) {
-    size_t hex_len = strlen(hex_str);
-    if (hex_len == 0 || hex_len % 2 != 0) return -1;
-    
-    size_t byte_len = hex_len / 2;
-    uint8_t* data = (uint8_t*)malloc(byte_len);
-    if (!data) return -1;
-    
-    for (size_t i = 0; i < byte_len; i++) {
-        int high = hex_char_to_int(hex_str[i * 2]);
-        int low = hex_char_to_int(hex_str[i * 2 + 1]);
-        
-        if (high == -1 || low == -1) {
-            free(data);
-            return -1;
-        }
-        
-        data[i] = (high << 4) | low;
-    }
-    
-    big_int->data = data;
-    big_int->length = byte_len;
-    return 0;
-}
-
-int bigint_to_hex_string(const BigInt* big_int, char* hex_str, size_t hex_str_size) {
-    if (!big_int || !big_int->data || !hex_str) return -1;
-    
-    if (hex_str_size < (big_int->length * 2 + 1)) return -1;
-    
-    for (size_t i = 0; i < big_int->length; i++) {
-        snprintf(hex_str + (i * 2), 3, "%02x", big_int->data[i]);
-    }
-    
-    return 0;
 }
 
 int parse_election_params_json(const char* json_str, ElectionParams* params) {

@@ -25,7 +25,7 @@ EMSCRIPTEN_KEEPALIVE
 int generate_secret_key(const uint8_t* n_data, size_t n_length) {
     // Clean up any existing secret key
     if (g_sk_i) {
-        free_bigint_ptr(g_sk_i);
+        free_bigint(g_sk_i);
         g_sk_i = NULL;
     }
     
@@ -100,7 +100,7 @@ int compute_aggregator_public_key(const uint8_t* h_data, size_t h_length,
                                  const uint8_t* n_data, size_t n_length) {
     // Clean up any existing public key
     if (g_pk_A) {
-        free_bigint_ptr(g_pk_A);
+        free_bigint(g_pk_A);
         g_pk_A = NULL;
     }
     
@@ -162,7 +162,7 @@ int compute_auxiliary_key(const uint8_t* n_data, size_t n_length) {
     
     // Clean up any existing auxiliary key
     if (g_aux_i) {
-        free_bigint_ptr(g_aux_i);
+        free_bigint(g_aux_i);
         g_aux_i = NULL;
     }
     
@@ -356,28 +356,28 @@ int get_auxiliary_key(uint8_t* result, size_t result_length) {
 EMSCRIPTEN_KEEPALIVE
 int clear_crypto_params() {
     if (g_sk_i) {
-        free_bigint_ptr(g_sk_i);
+        free_bigint(g_sk_i);
         g_sk_i = NULL;
     }
     
     if (g_pk_A) {
-        free_bigint_ptr(g_pk_A);
+        free_bigint(g_pk_A);
         g_pk_A = NULL;
     }
     
     if (g_aux_i) {
-        free_bigint_ptr(g_aux_i);
+        free_bigint(g_aux_i);
         g_aux_i = NULL;
     }
     
     // Clear election parameters
     if (election_params.n) {
-        free_bigint_ptr(election_params.n);
+        free_bigint(election_params.n);
         election_params.n = NULL;
     }
     
     if (election_params.h) {
-        free_bigint_ptr(election_params.h);
+        free_bigint(election_params.h);
         election_params.h = NULL;
     }
     
@@ -411,7 +411,7 @@ int initialize_crypto_params(const uint8_t* n, size_t n_len, const uint8_t* h, s
 
     election_params.h = malloc(sizeof(BigInt));
     if (!election_params.h) {
-        free_bigint_ptr(election_params.n);
+        free_bigint(election_params.n);
         election_params.n = NULL;
         return -2;
     }
@@ -419,7 +419,7 @@ int initialize_crypto_params(const uint8_t* n, size_t n_len, const uint8_t* h, s
     if (!election_params.h->data) {
         free(election_params.h);
         election_params.h = NULL;
-        free_bigint_ptr(election_params.n);
+        free_bigint(election_params.n);
         election_params.n = NULL;
         return -2;
     }

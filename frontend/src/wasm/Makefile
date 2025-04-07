@@ -6,6 +6,9 @@ OUTPUT = $(OUTPUT_DIR)/$(OUTPUT_NAME).js
 # Source files
 SOURCES = main.c bigint_ops.c vote_encrypt.c crypto_voting.c
 
+# Common library path
+COMMON_LIB_PATH = ../../../common/bigint_lib
+
 # Emscripten compiler
 EMCC = emcc
 
@@ -18,7 +21,8 @@ CFLAGS = -O3 -s WASM=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] \
           '_encrypt_vote_paillier', '_get_secret_key', '_get_aggregator_public_key', \
           '_get_auxiliary_key', '_clear_crypto_params', '_initialize_crypto_params']" \
          -s ALLOW_MEMORY_GROWTH=1 -s MODULARIZE=1 -s EXPORT_ES6=0 \
-         -s EXPORT_NAME="createEncryptionModule"
+         -s EXPORT_NAME="createEncryptionModule" \
+         -I$(COMMON_LIB_PATH)
 
 # Build rule
 all: $(OUTPUT_DIR) $(OUTPUT)
@@ -27,7 +31,7 @@ $(OUTPUT_DIR):
 	mkdir -p $(OUTPUT_DIR)
 
 $(OUTPUT): $(SOURCES)
-	$(EMCC) $(CFLAGS) -o $(OUTPUT) $(SOURCES)
+	$(EMCC) $(CFLAGS) -o $(OUTPUT) $(SOURCES) $(COMMON_LIB_PATH)/bigint.c
 	@echo "WebAssembly module compiled to $(OUTPUT) and $(OUTPUT).wasm"
 
 # Clean rule

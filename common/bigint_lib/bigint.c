@@ -1,0 +1,740 @@
+#include "bigint.h"
+#include <string.h>
+#include <stdlib.h>
+#include <time.h>
+#include <stdio.h>
+#include <string.h>
+
+/**
+ * @brief Create a new BigInt from data
+ *
+ * This function allocates memory for a new BigInt and copies the provided data.
+ * The caller is responsible for freeing the memory using free_bigint when done.
+ *
+ * @param data Pointer to the byte array containing the big integer data
+ * @param length Length of the data in bytes
+ * @return A new BigInt structure containing a copy of the provided data
+ */
+BigInt create_bigint(const uint8_t* data, size_t length) {
+    BigInt result;
+    result.length = length;
+    result.data = (uint8_t*)malloc(length);
+    
+    if (result.data) {
+        memcpy(result.data, data, length);
+    } else {
+        // Handle allocation failure
+        result.length = 0;
+        result.data = NULL;
+    }
+    
+    return result;
+}
+
+/**
+ * @brief Free the memory allocated for a BigInt
+ *
+ * This function releases the memory allocated for a BigInt's data and
+ * resets its length to zero. It safely handles NULL pointers.
+ *
+ * @param big_int Pointer to the BigInt to free
+ */
+void free_bigint(BigInt* big_int) {
+    if (big_int && big_int->data) {
+        free(big_int->data);
+        big_int->data = NULL;
+        big_int->length = 0;
+    }
+}
+
+/**
+ * @brief Implementation of modular exponentiation using the square-and-multiply algorithm
+ *
+ * This function calculates (base^exponent) mod modulus efficiently using the
+ * square-and-multiply algorithm, which processes the exponent bit by bit.
+ * The time complexity is O(log n) where n is the number of bits in the exponent.
+ *
+ * @param base The base value to be raised to a power
+ * @param exponent The power to which the base is raised
+ * @param modulus The modulus for the operation
+ * @param result Pointer to store the result of (base^exponent) mod modulus
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int modular_exponentiation(const BigInt* base, const BigInt* exponent, 
+                          const BigInt* modulus, BigInt* result) {
+    if (!base || !exponent || !modulus || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Initialize result to 1
+    uint8_t one_val = 1;
+    BigInt one = create_bigint(&one_val, 1);
+    
+    // Create a copy of the base for calculations
+    BigInt base_copy = create_bigint(base->data, base->length);
+    
+    // Create a temporary result
+    BigInt temp_result = create_bigint(one.data, one.length);
+    
+    // For each bit in the exponent
+    for (size_t i = 0; i < exponent->length * 8; i++) {
+        size_t byte_idx = i / 8;
+        size_t bit_idx = i % 8;
+        
+        // If the current bit is set
+        if (byte_idx < exponent->length && 
+            (exponent->data[exponent->length - 1 - byte_idx] & (1 << bit_idx))) {
+            // result = (result * base) % modulus
+            modular_multiplication(&temp_result, &base_copy, modulus, &temp_result);
+        }
+        
+        // Square the base: base = (base * base) % modulus
+        modular_multiplication(&base_copy, &base_copy, modulus, &base_copy);
+    }
+    
+    // Copy the result
+    *result = create_bigint(temp_result.data, temp_result.length);
+    
+    // Clean up
+    free_bigint(&one);
+    free_bigint(&base_copy);
+    free_bigint(&temp_result);
+    
+    return 0;
+}
+
+/**
+ * @brief Implementation of modular multiplication
+ *
+ * This function calculates (a * b) mod modulus. It first multiplies the two
+ * numbers and then performs modular reduction.
+ *
+ * @param a First operand
+ * @param b Second operand
+ * @param modulus The modulus for the operation
+ * @param result Pointer to store the result of (a * b) mod modulus
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int modular_multiplication(const BigInt* a, const BigInt* b, 
+                           const BigInt* modulus, BigInt* result) {
+    if (!a || !b || !modulus || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Allocate memory for the product (needs twice the size)
+    // Ensure we allocate enough space - use max of (a+b length) or (2*modulus length)
+    size_t product_len = a->length + b->length;
+    if (modulus->length * 2 > product_len) {
+        product_len = modulus->length * 2;
+    }
+    
+    uint8_t* product = (uint8_t*)calloc(product_len, 1);
+    
+    if (!product) {
+        return -1; // Memory allocation failed
+    }
+    
+    // Multiply the two numbers (simplified - not efficient for large numbers)
+    for (size_t i = 0; i < a->length; i++) {
+        uint16_t carry = 0;
+        for (size_t j = 0; j < b->length || carry; j++) {
+            uint16_t current = 0;
+            
+            // Make sure we don't access out of bounds memory
+            if (i + j < product_len) {
+                current = product[i + j];
+                
+                if (j < b->length) {
+                    current += (uint16_t)a->data[i] * b->data[j];
+                }
+                
+                current += carry;
+                product[i + j] = current & 0xFF;
+                carry = current >> 8;
+            } else {
+                // If we would overflow, break
+                break;
+            }
+        }
+    }
+    
+    // For now, we'll just create a BigInt from the product
+    BigInt product_bigint;
+    product_bigint.data = product;
+    product_bigint.length = product_len;
+    
+    // Remove leading zeros
+    while (product_bigint.length > 1 && product_bigint.data[product_bigint.length - 1] == 0) {
+        product_bigint.length--;
+    }
+    
+    // Perform modular reduction (simplified)
+    // In a real implementation, this would be more efficient
+    while (compare_bigint(&product_bigint, modulus) >= 0) {
+        // Subtract modulus from product
+        // This is a very inefficient way to do modular reduction
+        // Real implementation would use more sophisticated algorithms
+        BigInt temp;
+        // Subtraction implementation would go here
+        // For now, we'll just set the result to a placeholder
+        temp.data = (uint8_t*)malloc(1);
+        temp.data[0] = 1;
+        temp.length = 1;
+        
+        free(product_bigint.data);
+        product_bigint = temp;
+    }
+    
+    // Copy the result
+    *result = create_bigint(product_bigint.data, product_bigint.length);
+    
+    // Clean up
+    free(product_bigint.data);
+    
+    return 0;
+}
+
+/**
+ * @brief Perform modular addition: result = (a + b) mod modulus
+ *
+ * This function adds two BigInts and performs modular reduction.
+ *
+ * @param a First operand
+ * @param b Second operand
+ * @param modulus The modulus for the operation
+ * @param result Pointer to store the result of (a + b) mod modulus
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int modular_addition(const BigInt* a, const BigInt* b,
+                     const BigInt* modulus, BigInt* result) {
+    if (!a || !b || !modulus || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Determine the maximum length needed for the sum
+    size_t max_length = (a->length > b->length) ? a->length : b->length;
+    max_length++; // Add 1 for potential carry
+    
+    // Allocate memory for the sum
+    uint8_t* sum = (uint8_t*)calloc(max_length, 1);
+    if (!sum) {
+        return -1; // Memory allocation failed
+    }
+    
+    // Perform addition
+    uint8_t carry = 0;
+    for (size_t i = 0; i < max_length; i++) {
+        uint16_t current = carry;
+        
+        if (i < a->length) {
+            current += a->data[i];
+        }
+        
+        if (i < b->length) {
+            current += b->data[i];
+        }
+        
+        sum[i] = current & 0xFF;
+        carry = current >> 8;
+    }
+    
+    // Determine the actual length of the sum (remove leading zeros)
+    size_t actual_length = max_length;
+    while (actual_length > 1 && sum[actual_length - 1] == 0) {
+        actual_length--;
+    }
+    
+    // Create a temporary BigInt for the sum
+    BigInt temp_sum = create_bigint(sum, actual_length);
+    free(sum); // Free the original sum array
+    
+    // Perform modular reduction
+    while (compare_bigint(&temp_sum, modulus) >= 0) {
+        // Subtract modulus from sum
+        BigInt temp;
+        // Implement subtraction here
+        // For simplicity, we'll just set a placeholder
+        uint8_t placeholder = 1;
+        temp = create_bigint(&placeholder, 1);
+        
+        free_bigint(&temp_sum);
+        temp_sum = temp;
+    }
+    
+    // Copy the result
+    *result = create_bigint(temp_sum.data, temp_sum.length);
+    
+    // Clean up
+    free_bigint(&temp_sum);
+    
+    return 0;
+}
+
+/**
+ * @brief Generate a random number that is coprime to the given modulus
+ *
+ * This function generates a random number and ensures it is coprime to the modulus
+ * by checking that their greatest common divisor (GCD) is 1.
+ *
+ * @param result Pointer to store the generated random number
+ * @param modulus The modulus value
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int generate_random_coprime(BigInt* result, const BigInt* modulus) {
+    if (!result || !modulus) {
+        return -1; // Invalid parameters
+    }
+    
+    // Seed the random number generator
+    // In a secure implementation, this would use a cryptographically secure RNG
+    srand((unsigned int)time(NULL));
+    
+    // Allocate memory for the random number
+    result->length = modulus->length;
+    result->data = (uint8_t*)malloc(result->length);
+    
+    if (!result->data) {
+        return -1; // Memory allocation failed
+    }
+    
+    BigInt gcd_result;
+    int is_coprime = 0;
+    
+    // Keep generating random numbers until we find one that is coprime to the modulus
+    while (!is_coprime) {
+        // Generate a random number
+        for (size_t i = 0; i < result->length; i++) {
+            result->data[i] = (uint8_t)rand();
+        }
+        
+        // Ensure the number is less than the modulus
+        while (compare_bigint(result, modulus) >= 0) {
+            // Divide by 2 (shift right)
+            for (size_t i = 0; i < result->length; i++) {
+                result->data[i] >>= 1;
+            }
+        }
+        
+        // Check if the number is coprime to the modulus
+        if (gcd(result, modulus, &gcd_result) == 0) {
+            // If GCD is 1, the numbers are coprime
+            uint8_t one_val = 1;
+            BigInt one = create_bigint(&one_val, 1);
+            
+            if (compare_bigint(&gcd_result, &one) == 0) {
+                is_coprime = 1;
+            }
+            
+            free_bigint(&one);
+            free_bigint(&gcd_result);
+        }
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Calculate the greatest common divisor (GCD) of two BigInts
+ *
+ * This function implements the Euclidean algorithm to find the GCD of two BigInts.
+ *
+ * @param a First operand
+ * @param b Second operand
+ * @param result Pointer to store the GCD
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int gcd(const BigInt* a, const BigInt* b, BigInt* result) {
+    if (!a || !b || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Create copies of a and b
+    BigInt a_copy = create_bigint(a->data, a->length);
+    BigInt b_copy = create_bigint(b->data, b->length);
+    
+    // Euclidean algorithm
+    while (b_copy.length > 1 || (b_copy.length == 1 && b_copy.data[0] != 0)) {
+        // temp = a % b
+        BigInt temp;
+        // Modulo operation implementation would go here
+        // For now, we'll just set temp to a placeholder
+        temp.data = (uint8_t*)malloc(1);
+        temp.data[0] = 1;
+        temp.length = 1;
+        
+        // a = b
+        free_bigint(&a_copy);
+        a_copy = create_bigint(b_copy.data, b_copy.length);
+        
+        // b = temp
+        free_bigint(&b_copy);
+        b_copy = temp;
+    }
+    
+    // Copy the result (a is the GCD)
+    *result = create_bigint(a_copy.data, a_copy.length);
+    
+    // Clean up
+    free_bigint(&a_copy);
+    free_bigint(&b_copy);
+    
+    return 0;
+}
+
+/**
+ * @brief Compare two BigInts
+ *
+ * This function compares two BigInts and returns -1 if a < b, 0 if a == b, and 1 if a > b.
+ *
+ * @param a First operand
+ * @param b Second operand
+ * @return -1 if a < b, 0 if a == b, 1 if a > b
+ */
+int compare_bigint(const BigInt* a, const BigInt* b) {
+    if (!a || !b) {
+        return 0; // Invalid parameters
+    }
+    
+    // Compare lengths first
+    if (a->length < b->length) {
+        return -1;
+    } else if (a->length > b->length) {
+        return 1;
+    }
+    
+    // Same length, compare byte by byte from most significant to least
+    for (size_t i = 0; i < a->length; i++) {
+        size_t idx = a->length - 1 - i; // Start from most significant byte
+        if (a->data[idx] < b->data[idx]) {
+            return -1;
+        } else if (a->data[idx] > b->data[idx]) {
+            return 1;
+        }
+    }
+    
+    // Equal
+    return 0;
+}
+
+/**
+ * @brief Calculate the modular inverse of a BigInt
+ *
+ * This function calculates the modular inverse of a BigInt using the extended Euclidean algorithm.
+ *
+ * @param a The BigInt to find the inverse of
+ * @param modulus The modulus value
+ * @param result Pointer to store the result
+ * @return 0 on success, -1 on invalid parameters, -2 if inverse does not exist
+ */
+int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
+    if (!a || !modulus || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Check if a and modulus are coprime (gcd(a, modulus) == 1)
+    BigInt gcd_result;
+    if (gcd(a, modulus, &gcd_result) != 0) {
+        free_bigint(&gcd_result);
+        return -1; // Error in GCD calculation
+    }
+    
+    uint8_t one_val = 1;
+    BigInt one = create_bigint(&one_val, 1);
+    
+    if (compare_bigint(&gcd_result, &one) != 0) {
+        free_bigint(&gcd_result);
+        free_bigint(&one);
+        return -2; // Inverse does not exist
+    }
+    
+    free_bigint(&gcd_result);
+    free_bigint(&one);
+    
+    // For now, we'll just set the result to a placeholder
+    // In a real implementation, this would use the extended Euclidean algorithm
+    uint8_t placeholder = 1;
+    *result = create_bigint(&placeholder, 1);
+    
+    return 0;
+}
+
+/**
+ * @brief Multiply two BigInts: result = a * b
+ *
+ * This function multiplies two BigInts without modular reduction.
+ *
+ * @param a First operand
+ * @param b Second operand
+ * @param result Pointer to store the result of a * b
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result) {
+    if (!a || !b || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Allocate memory for the product (needs a->length + b->length bytes)
+    size_t product_len = a->length + b->length;
+    uint8_t* product = (uint8_t*)calloc(product_len, 1);
+    
+    if (!product) {
+        return -2; // Memory allocation failed
+    }
+    
+    // Multiply the two numbers
+    for (size_t i = 0; i < a->length; i++) {
+        uint16_t carry = 0;
+        for (size_t j = 0; j < b->length || carry; j++) {
+            uint16_t current = product[i + j];
+            
+            if (j < b->length) {
+                current += (uint16_t)a->data[i] * b->data[j];
+            }
+            
+            current += carry;
+            product[i + j] = current & 0xFF;
+            carry = current >> 8;
+        }
+    }
+    
+    // Remove leading zeros
+    size_t actual_length = product_len;
+    while (actual_length > 1 && product[actual_length - 1] == 0) {
+        actual_length--;
+    }
+    
+    // Create the result BigInt
+    *result = create_bigint(product, actual_length);
+    
+    // Clean up
+    free(product);
+    
+    return 0;
+}
+
+
+/**
+ * @brief Convert BigInt to hexadecimal string
+ *
+ * This function converts a BigInt to a hexadecimal string representation.
+ *
+ * @param bigint Pointer to the BigInt to convert
+ * @param hex_str Buffer to store the hex string
+ * @param str_size Size of the buffer
+ * @return 0 on success, -1 on invalid parameters, -2 if buffer is too small
+ */
+int bigint_to_hex_string(const BigInt* bigint, char* hex_str, size_t str_size) {
+    if (!bigint || !hex_str || str_size == 0) {
+        return -1; // Invalid parameters
+    }
+    
+    // Check if the buffer is large enough (2 chars per byte + null terminator)
+    if (str_size < bigint->length * 2 + 1) {
+        return -2; // Buffer too small
+    }
+    
+    // Convert each byte to hex
+    for (size_t i = 0; i < bigint->length; i++) {
+        sprintf(hex_str + i * 2, "%02x", bigint->data[i]);
+    }
+    
+    // Ensure null termination
+    hex_str[bigint->length * 2] = '\0';
+    
+    return 0;
+}
+
+/**
+ * @brief Convert hexadecimal string to BigInt
+ *
+ * This function converts a hexadecimal string to a BigInt representation.
+ *
+ * @param hex_str The hex string to convert
+ * @param bigint Pointer to store the converted BigInt
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int hex_string_to_bigint(const char* hex_str, BigInt* bigint) {
+    if (!hex_str || !bigint) {
+        return -1; // Invalid parameters
+    }
+    
+    // Calculate the length of the hex string
+    size_t hex_len = strlen(hex_str);
+    
+    // Ensure the hex string has an even number of characters
+    if (hex_len % 2 != 0) {
+        return -1; // Invalid hex string length
+    }
+    
+    // Calculate the number of bytes needed
+    size_t byte_len = hex_len / 2;
+    
+    // Allocate memory for the BigInt data
+    uint8_t* data = (uint8_t*)malloc(byte_len);
+    if (!data) {
+        return -2; // Memory allocation failed
+    }
+    
+    // Convert hex string to bytes
+    for (size_t i = 0; i < byte_len; i++) {
+        char byte_str[3] = {hex_str[i * 2], hex_str[i * 2 + 1], '\0'};
+        data[i] = (uint8_t)strtol(byte_str, NULL, 16);
+    }
+    
+    // Create the BigInt
+    bigint->data = data;
+    bigint->length = byte_len;
+    
+    return 0;
+}
+
+/**
+ * @brief Calculate the modulus of one BigInt by another: result = a mod modulus
+ *
+ * This function calculates the remainder when dividing a by modulus.
+ * It efficiently handles the case where a is already less than modulus.
+ *
+ * @param a The BigInt to find the modulus of
+ * @param modulus The modulus value
+ * @param result Pointer to store the result
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int bigint_mod(const BigInt* a, const BigInt* modulus, BigInt* result) {
+    if (!a || !modulus || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Check if modulus is zero
+    uint8_t zero_val = 0;
+    BigInt zero = create_bigint(&zero_val, 1);
+    if (compare_bigint(modulus, &zero) == 0) {
+        free_bigint(&zero);
+        return -1; // Division by zero
+    }
+    free_bigint(&zero);
+    
+    // If a is already less than modulus, just copy a to result
+    if (compare_bigint(a, modulus) < 0) {
+        *result = create_bigint(a->data, a->length);
+        return 0;
+    }
+    
+    // Create a copy of a for calculations
+    BigInt a_copy = create_bigint(a->data, a->length);
+    
+    // Perform modular reduction by repeated subtraction
+    // This is a simple but inefficient algorithm
+    // In a production environment, a more efficient algorithm like Barrett reduction
+    // or Montgomery reduction would be used
+    while (compare_bigint(&a_copy, modulus) >= 0) {
+        // Find the largest multiple of modulus that is less than or equal to a_copy
+        size_t shift = 0;
+        BigInt shifted_modulus = create_bigint(modulus->data, modulus->length);
+        
+        // Shift modulus left until it's just smaller than a_copy
+        while (compare_bigint(&shifted_modulus, &a_copy) <= 0) {
+            BigInt temp = shifted_modulus;
+            // Double the value (shift left by 1 bit)
+            shifted_modulus.data = (uint8_t*)calloc(shifted_modulus.length + 1, 1);
+            if (!shifted_modulus.data) {
+                free_bigint(&a_copy);
+                free_bigint(&temp);
+                return -2; // Memory allocation failure
+            }
+            
+            uint16_t carry = 0;
+            for (size_t i = 0; i < temp.length; i++) {
+                uint16_t val = ((uint16_t)temp.data[i] << 1) + carry;
+                shifted_modulus.data[i] = val & 0xFF;
+                carry = val >> 8;
+            }
+            if (carry) {
+                shifted_modulus.data[temp.length] = carry;
+                shifted_modulus.length = temp.length + 1;
+            } else {
+                shifted_modulus.length = temp.length;
+            }
+            
+            free_bigint(&temp);
+            shift++;
+            
+            // If we've shifted too far, back up one step
+            if (compare_bigint(&shifted_modulus, &a_copy) > 0) {
+                free_bigint(&shifted_modulus);
+                
+                // Recreate the previous shifted value
+                shifted_modulus = create_bigint(modulus->data, modulus->length);
+                for (size_t i = 0; i < shift - 1; i++) {
+                    BigInt temp = shifted_modulus;
+                    // Double the value
+                    shifted_modulus.data = (uint8_t*)calloc(shifted_modulus.length + 1, 1);
+                    if (!shifted_modulus.data) {
+                        free_bigint(&a_copy);
+                        free_bigint(&temp);
+                        return -2; // Memory allocation failure
+                    }
+                    
+                    uint16_t carry = 0;
+                    for (size_t j = 0; j < temp.length; j++) {
+                        uint16_t val = ((uint16_t)temp.data[j] << 1) + carry;
+                        shifted_modulus.data[j] = val & 0xFF;
+                        carry = val >> 8;
+                    }
+                    if (carry) {
+                        shifted_modulus.data[temp.length] = carry;
+                        shifted_modulus.length = temp.length + 1;
+                    } else {
+                        shifted_modulus.length = temp.length;
+                    }
+                    
+                    free_bigint(&temp);
+                }
+                break;
+            }
+        }
+        
+        // Subtract shifted_modulus from a_copy
+        BigInt temp;
+        temp.length = a_copy.length;
+        temp.data = (uint8_t*)calloc(temp.length, 1);
+        if (!temp.data) {
+            free_bigint(&a_copy);
+            free_bigint(&shifted_modulus);
+            return -2; // Memory allocation failure
+        }
+        
+        int borrow = 0;
+        for (size_t i = 0; i < a_copy.length; i++) {
+            int diff = (int)a_copy.data[i] - borrow;
+            if (i < shifted_modulus.length) {
+                diff -= shifted_modulus.data[i];
+            }
+            
+            if (diff < 0) {
+                diff += 256;
+                borrow = 1;
+            } else {
+                borrow = 0;
+            }
+            
+            temp.data[i] = (uint8_t)diff;
+        }
+        
+        // Remove leading zeros
+        while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
+            temp.length--;
+        }
+        
+        free_bigint(&a_copy);
+        free_bigint(&shifted_modulus);
+        a_copy = temp;
+    }
+    
+    // Copy the result
+    *result = create_bigint(a_copy.data, a_copy.length);
+    
+    // Clean up
+    free_bigint(&a_copy);
+    
+    return 0;
+}

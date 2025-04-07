@@ -1,9 +1,9 @@
 #ifndef VOTE_ENCRYPT_H
 #define VOTE_ENCRYPT_H
 
-#include "bigint_ops.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include "bigint_ops.h"
 
 /**
  * @brief Pack an array of votes into a single BigInt, with each vote occupying 25 bits

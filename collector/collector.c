@@ -85,30 +85,3 @@ int collector_cleanup(void) {
     g_initialized = 0;
     return 0;
 }
-
-BigInt create_bigint(const uint8_t* data, size_t length) {
-    BigInt result;
-    
-    result.length = length;
-    result.data = (uint8_t*)malloc(length);
-    
-    if (result.data) {
-        memcpy(result.data, data, length);
-    } else {
-        // Handle allocation failure
-        result.length = 0;
-    }
-    
-    return result;
-}
-
-void free_bigint(BigInt* big_int) {
-    if (big_int && big_int->data) {
-        // Securely wipe the memory before freeing
-        // This is important for sensitive cryptographic data
-        memset(big_int->data, 0, big_int->length);
-        free(big_int->data);
-        big_int->data = NULL;
-        big_int->length = 0;
-    }
-}

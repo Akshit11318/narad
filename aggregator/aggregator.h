@@ -3,14 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-
-/**
- * @brief Structure to hold large integers for cryptographic operations
- */
-typedef struct {
-    uint8_t* data;  // Pointer to the big integer data
-    size_t length;  // Length of the data in bytes
-} BigInt;
+#include "bigint_ops.h"
 
 /**
  * @brief Structure to hold election parameters
@@ -109,12 +102,5 @@ int aggregator_cleanup(AggregatorParams* params);
  * @param length Length of the byte array
  * @return Initialized BigInt structure
  */
-BigInt create_bigint(const uint8_t* data, size_t length);
-
-/**
- * @brief Free resources used by a BigInt
- * @param big_int Pointer to the BigInt to free
- */
-void free_bigint(BigInt* big_int);
 
 #endif /* AGGREGATOR_H */

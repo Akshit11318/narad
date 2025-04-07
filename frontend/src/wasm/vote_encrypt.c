@@ -1,3 +1,4 @@
+#include <emscripten.h>
 #include "vote_encrypt.h"
 #include "bigint_ops.h"
 #include "crypto_voting.h"
@@ -10,6 +11,7 @@
  * @param vote_count Number of votes in the array (max 20)
  * @return A BigInt containing the packed votes
  */
+EMSCRIPTEN_KEEPALIVE
 BigInt pack_votes(const uint32_t* votes, size_t vote_count) {
     if (!votes || vote_count > 20) {
         // Return empty BigInt for invalid inputs
@@ -92,6 +94,7 @@ BigInt pack_votes(const uint32_t* votes, size_t vote_count) {
  * @param result_length Length of the result buffer
  * @return 0 on success, negative value on error
  */
+EMSCRIPTEN_KEEPALIVE
 int pack_and_encrypt_votes(const uint32_t* votes, size_t vote_count,
                            const uint8_t* n_data, size_t n_length,
                            const uint8_t* h_data, size_t h_length,
@@ -136,6 +139,7 @@ static size_t g_encrypted_vote_size = 0;
 
  * @return 0 on success, negative value on error
  */
+EMSCRIPTEN_KEEPALIVE
 int encrypt_and_store(const uint32_t* votes, size_t vote_count,
                       const uint8_t* n_data, size_t n_length,
                       const uint8_t* h_data, size_t h_length
@@ -181,6 +185,7 @@ int encrypt_and_store(const uint32_t* votes, size_t vote_count,
  * @param result_length Length of the result buffer
  * @return Size of the encrypted vote in bytes, or negative value on error
  */
+EMSCRIPTEN_KEEPALIVE
 int get_encrypted_vote(uint8_t* result, size_t result_length) {
     if (!g_encrypted_vote || g_encrypted_vote_size == 0) {
         return -1; // No encrypted vote stored
@@ -200,6 +205,7 @@ int get_encrypted_vote(uint8_t* result, size_t result_length) {
  * @brief Get the size of the stored encrypted vote
  * @return Size in bytes of the stored encrypted vote, or 0 if none exists
  */
+EMSCRIPTEN_KEEPALIVE
 size_t get_encrypted_vote_size() {
     return g_encrypted_vote_size;
 }
@@ -208,6 +214,7 @@ size_t get_encrypted_vote_size() {
  * @brief Clear the stored encrypted vote
  * @return 0 on success
  */
+EMSCRIPTEN_KEEPALIVE
 int clear_encrypted_vote() {
     if (g_encrypted_vote) {
         free(g_encrypted_vote);

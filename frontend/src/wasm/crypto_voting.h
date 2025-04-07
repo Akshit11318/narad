@@ -1,9 +1,9 @@
 #ifndef CRYPTO_VOTING_H
 #define CRYPTO_VOTING_H
 
-#include "bigint_ops.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include "bigint_ops.h"
 
 
 /**
