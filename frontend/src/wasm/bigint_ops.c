@@ -16,9 +16,15 @@ BigInt create_bigint(const uint8_t* data, size_t length) {
     BigInt result;
     result.length = length;
     result.data = (uint8_t*)malloc(length);
+    
     if (result.data) {
         memcpy(result.data, data, length);
+    } else {
+        // Handle allocation failure
+        result.length = 0;
+        result.data = NULL;
     }
+    
     return result;
 }
 
@@ -276,4 +282,33 @@ int modular_addition(const BigInt* a, const BigInt* b,
     free_bigint(&temp_sum);
     
     return 0;
+}
+
+/**
+ * @brief Create a new BigInt from a byte array
+ * 
+ * This function allocates memory for a new BigInt pointer and copies the provided data.
+ * The caller is responsible for freeing the memory using free_bigint_ptr when done.
+ * 
+ * @param data Pointer to the byte array containing the big integer data
+ * @param length Length of the data in bytes
+ * @return A pointer to a newly allocated BigInt
+ */
+BigInt* create_bigint_from_array(const uint8_t* data, size_t length) {
+    if (!data || length == 0) {
+        return NULL;
+    }
+    
+    BigInt* result = (BigInt*)malloc(sizeof(BigInt));
+    if (!result) {
+        return NULL;
+    }
+    
+    *result = create_bigint(data, length);
+    if (!result->data) {
+        free(result);
+        return NULL;
+    }
+    
+    return result;
 }

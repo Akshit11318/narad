@@ -62,13 +62,7 @@ int encrypt_vote(const uint8_t* vote_array, size_t vote_length,
     return 0;
 }
 
-// Helper function to convert a JavaScript array to a BigInt
-EMSCRIPTEN_KEEPALIVE
-BigInt* create_bigint_from_array(const uint8_t* data, size_t length) {
-    BigInt* result = (BigInt*)malloc(sizeof(BigInt));
-    *result = create_bigint(data, length);
-    return result;
-}
+
 
 // Helper function to free a BigInt
 EMSCRIPTEN_KEEPALIVE

@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdio.h>
+
+// Define the global election parameters variable
+ElectionParams election_params = {NULL, NULL};
 
 // Global storage for cryptographic parameters
 static BigInt* g_sk_i = NULL;  // Client's secret key
@@ -346,7 +350,7 @@ int get_auxiliary_key(uint8_t* result, size_t result_length) {
 }
 
 /**
- * @brief Clean up all cryptographic parameters
+ * @brief Clear all cryptographic parameters
  * @return 0 on success
  */
 EMSCRIPTEN_KEEPALIVE
@@ -366,5 +370,70 @@ int clear_crypto_params() {
         g_aux_i = NULL;
     }
     
+    // Clear election parameters
+    if (election_params.n) {
+        free_bigint_ptr(election_params.n);
+        election_params.n = NULL;
+    }
+    
+    if (election_params.h) {
+        free_bigint_ptr(election_params.h);
+        election_params.h = NULL;
+    }
+    
     return 0;
+}
+
+/**
+ * Initialize the cryptographic parameters for election
+ * @param n The modulus parameter (N)
+ * @param n_len Length of N in bytes
+ * @param h The base element parameter (H)
+ * @param h_len Length of H in bytes
+ * @return 0 on success, negative value on error
+ */
+int initialize_crypto_params(const uint8_t* n, size_t n_len, const uint8_t* h, size_t h_len) {
+    // Clear any existing parameters
+    clear_crypto_params();
+    
+    // Initialize parameters from inputs
+    election_params.n = malloc(sizeof(BigInt));
+    if (!election_params.n) {
+        return -1;
+    }
+    *election_params.n = create_bigint(n, n_len);
+    if (!election_params.n->data) {
+        free(election_params.n);
+        election_params.n = NULL;
+        return -1;
+    }
+
+    election_params.h = malloc(sizeof(BigInt));
+    if (!election_params.h) {
+        free_bigint_ptr(election_params.n);
+        election_params.n = NULL;
+        return -2;
+    }
+    *election_params.h = create_bigint(h, h_len);
+    if (!election_params.h->data) {
+        free(election_params.h);
+        election_params.h = NULL;
+        free_bigint_ptr(election_params.n);
+        election_params.n = NULL;
+        return -2;
+    }
+    
+    // Log parameter values for debugging
+    printf("Initialized N parameter with %zu bytes\n", n_len);
+    printf("Initialized H parameter with %zu bytes\n", h_len);
+    
+    return 0;
+}
+
+/**
+ * Export the initialization function to JavaScript
+ */
+EMSCRIPTEN_KEEPALIVE
+int initialize_crypto_params_wrapper(const uint8_t* n, size_t n_len, const uint8_t* h, size_t h_len) {
+    return initialize_crypto_params(n, n_len, h, h_len);
 }

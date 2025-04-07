@@ -32,6 +32,7 @@ interface EncryptionModule {
   _get_aggregator_public_key_wrapper(resultPtr: number, resultLength: number): number;
   _get_auxiliary_key_wrapper(resultPtr: number, resultLength: number): number;
   _clear_crypto_params_wrapper(): number;
+  _initialize_crypto_params_wrapper(nPtr: number, nLength: number, hPtr: number, hLength: number): number;
   HEAPU8: Uint8Array;
 }
 
@@ -202,6 +203,10 @@ export async function encryptVote(
   const resultPtr = module._malloc(resultLength);
 
   try {
+    // Log vote array before encryption
+    console.log('Vote array before encryption:', voteArray);
+    console.log('Vote array bytecode:', voteUint8);
+
     // Call the WebAssembly function
     const result = module._encrypt_vote(
       voteWasm.ptr,
@@ -215,6 +220,12 @@ export async function encryptVote(
       resultPtr,
       resultLength
     );
+    
+    // Log parameters used for encryption
+    console.log('Encryption parameters:');
+    console.log('N:', nUint8);
+    console.log('H:', hUint8);
+    console.log('Secret key:', skaUint8);
 
     if (result !== 0) {
       throw new Error(`Encryption failed with error code: ${result}`);
@@ -474,4 +485,74 @@ export async function getAuxiliaryKey(): Promise<Uint8Array> {
 export async function clearCryptoParams(): Promise<number> {
   const module = await loadWasmModule();
   return module._clear_crypto_params_wrapper();
+}
+
+/**
+ * Initialize cryptographic parameters with default values or custom inputs
+ * @param n Optional custom N parameter (modulus)
+ * @param h Optional custom H parameter (base element)
+ * @returns Object containing the initialized parameters
+ */
+export async function initCryptoParams(
+  n?: Uint8Array | number[],
+  h?: Uint8Array | number[]
+): Promise<{ n: Uint8Array, h: Uint8Array }> {
+  // Default values - these should be cryptographically secure parameters
+  // Note: These are sample values for testing, not for production use
+  const defaultN = new Uint8Array([
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC9, 0x0F, 0xDA, 0xA2, 0x21, 0x68, 0xC2, 0x34,
+    0xC4, 0xC6, 0x62, 0x8B, 0x80, 0xDC, 0x1C, 0xD1, 0x29, 0x02, 0x4E, 0x08, 0x8A, 0x67, 0xCC, 0x74,
+    0x02, 0x0B, 0xBE, 0xA6, 0x3B, 0x13, 0x9B, 0x22, 0x51, 0x4A, 0x08, 0x79, 0x8E, 0x34, 0x04, 0xDD,
+    0xEF, 0x95, 0x19, 0xB3, 0xCD, 0x3A, 0x43, 0x1B, 0x30, 0x2B, 0x0A, 0x6D, 0xF2, 0x5F, 0x14, 0x37
+  ]);
+
+  const defaultH = new Uint8Array([
+    0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0,
+    0x02, 0x13, 0x24, 0x35, 0x46, 0x57, 0x68, 0x79,
+    0x8A, 0x9B, 0xAC, 0xBD, 0xCE, 0xDF, 0xE0, 0xF1
+  ]); 
+
+  // Use provided parameters or defaults
+  const nParam = n ? (n instanceof Uint8Array ? n : new Uint8Array(n)) : defaultN;
+  const hParam = h ? (h instanceof Uint8Array ? h : new Uint8Array(h)) : defaultH;
+  
+  // Ensure the WebAssembly module is loaded
+  const module = await loadWasmModule();
+  
+  // Store the parameters in WebAssembly memory for use in encryption functions
+  const nWasm = copyArrayToWasm(module, nParam);
+  const hWasm = copyArrayToWasm(module, hParam);
+  
+  try {
+    // Call the C function to initialize these parameters
+    const result = module._initialize_crypto_params_wrapper(
+      nWasm.ptr, nWasm.length, 
+      hWasm.ptr, hWasm.length
+    );
+    
+    if (result < 0) {
+      throw new Error(`Failed to initialize crypto parameters: ${result}`);
+    }
+    
+    console.log(`Successfully initialized crypto parameters (N: ${nParam.length} bytes, H: ${hParam.length} bytes)`);
+    console.log('N parameter:', nParam);
+    console.log('H parameter:', hParam);
+    
+    // Store in localStorage for persistence if needed
+    try {
+      localStorage.setItem('electionParams_N', Array.from(nParam).join(','));
+      localStorage.setItem('electionParams_H', Array.from(hParam).join(','));
+    } catch (e) {
+      console.warn('Failed to store election parameters in localStorage', e);
+    }
+    
+    return {
+      n: nParam,
+      h: hParam
+    };
+  } finally {
+    // Free the allocated memory
+    module._free(nWasm.ptr);
+    module._free(hWasm.ptr);
+  }
 }
