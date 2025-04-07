@@ -1,0 +1,15 @@
+# Ignore build directory
+build/
+
+# Ignore object files
+*.o
+
+# Ignore executables
+*.exe
+*.out
+
+# Ignore editor files
+.vscode/
+.idea/
+*.swp
+*.swo
