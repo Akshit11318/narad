@@ -15,6 +15,7 @@ typedef struct {
     BigInt sk_A;     // Aggregator's secret key
     BigInt sk_A_mod_N; // sk_A mod N
     BigInt sk_A_inv;  // Inverse of sk_A mod N
+    BigInt running_product; // Running product of ciphertexts
 } AggregatorParams;
 
 /**
@@ -28,15 +29,27 @@ typedef struct {
 int aggregator_init(AggregatorParams* params, const BigInt* N, const BigInt* H, const BigInt* sk_A);
 
 /**
- * @brief Multiply all ciphertexts together
- * @param ciphertexts Array of ciphertext BigInts
- * @param count Number of ciphertexts
+ * @brief Add a single ciphertext to the running product
+ * @param ciphertext The ciphertext to add to the running product
  * @param params Aggregator parameters
- * @param result Pointer to store the product
  * @return 0 on success, non-zero on failure
  */
-int multiply_ciphertexts(const BigInt* ciphertexts, size_t count, 
-                         const AggregatorParams* params, BigInt* result);
+int add_ciphertext_to_product(const BigInt* ciphertext, AggregatorParams* params);
+
+/**
+ * @brief Reset the running product to 1
+ * @param params Aggregator parameters
+ * @return 0 on success, non-zero on failure
+ */
+int reset_running_product(AggregatorParams* params);
+
+/**
+ * @brief Get the current running product
+ * @param params Aggregator parameters
+ * @param result Pointer to store the running product
+ * @return 0 on success, non-zero on failure
+ */
+int get_running_product(const AggregatorParams* params, BigInt* result);
 
 /**
  * @brief Raise the product of ciphertexts to the power of sk_A
@@ -68,26 +81,13 @@ int divide_out_mask(const BigInt* P, const BigInt* aux,
 int recover_sum(const BigInt* P_prime, const AggregatorParams* params, BigInt* result);
 
 /**
- * @brief Compute the average of votes
- * @param sum The sum of votes
- * @param count Number of votes
- * @param result Pointer to store the average
- * @return 0 on success, non-zero on failure
- */
-int compute_average(const BigInt* sum, size_t count, BigInt* result);
-
-/**
- * @brief Aggregate votes in a single operation
- * @param ciphertexts Array of ciphertext BigInts
- * @param count Number of ciphertexts
+ * @brief Aggregate votes using the running product
  * @param aux The auxiliary value from the collector
  * @param params Aggregator parameters
  * @param sum Pointer to store the sum
- * @param average Pointer to store the average (can be NULL if not needed)
  * @return 0 on success, non-zero on failure
  */
-int aggregate_votes(const BigInt* ciphertexts, size_t count, const BigInt* aux,
-                    const AggregatorParams* params, BigInt* sum, BigInt* average);
+int aggregate_votes_from_running_product(const BigInt* aux, AggregatorParams* params, BigInt* sum);
 
 /**
  * @brief Clean up resources used by the aggregator

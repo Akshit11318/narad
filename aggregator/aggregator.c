@@ -13,39 +13,18 @@ int aggregator_init(AggregatorParams* params, const BigInt* N, const BigInt* H, 
     params->H = create_bigint(H->data, H->length);
     params->sk_A = create_bigint(sk_A->data, sk_A->length);
     
-    // Calculate N^2
-    // Allocate memory for N^2 (needs twice the size of N)
-    size_t n_squared_len = N->length * 2;
-    uint8_t* n_squared_data = (uint8_t*)calloc(n_squared_len, 1);
-    
-    if (!n_squared_data) {
+    // Calculate N^2 using the multiply_bigint function from the bigint library
+    BigInt n_squared_result;
+    if (multiply_bigint(N, N, &n_squared_result) != 0) {
         // Clean up and return error
         free_bigint(&params->N);
         free_bigint(&params->H);
         free_bigint(&params->sk_A);
-        return -2; // Memory allocation failed
+        return -2; // Multiplication failed
     }
     
-    // Multiply N by itself (simplified implementation)
-    for (size_t i = 0; i < N->length; i++) {
-        uint16_t carry = 0;
-        for (size_t j = 0; j < N->length; j++) {
-            uint16_t current = n_squared_data[i + j] + (uint16_t)N->data[i] * N->data[j] + carry;
-            n_squared_data[i + j] = current & 0xFF;
-            carry = current >> 8;
-        }
-        if (carry && i + N->length < n_squared_len) {
-            n_squared_data[i + N->length] = carry;
-        }
-    }
-    
-    // Remove leading zeros
-    while (n_squared_len > 1 && n_squared_data[n_squared_len - 1] == 0) {
-        n_squared_len--;
-    }
-    
-    params->N_squared = create_bigint(n_squared_data, n_squared_len);
-    free(n_squared_data);
+    params->N_squared = create_bigint(n_squared_result.data, n_squared_result.length);
+    free_bigint(&n_squared_result);
     
     // Calculate sk_A mod N
     BigInt sk_A_mod_N_result;
@@ -70,39 +49,53 @@ int aggregator_init(AggregatorParams* params, const BigInt* N, const BigInt* H, 
         return -3; // Failed to compute modular inverse
     }
     
+    // Initialize running product to 1
+    uint8_t one_val = 1;
+    params->running_product = create_bigint(&one_val, 1);
+    
     return 0;
 }
 
-int multiply_ciphertexts(const BigInt* ciphertexts, size_t count, 
-                         const AggregatorParams* params, BigInt* result) {
-    if (!ciphertexts || count == 0 || !params || !result) {
+int add_ciphertext_to_product(const BigInt* ciphertext, AggregatorParams* params) {
+    if (!ciphertext || !params) {
         return -1; // Invalid parameters
     }
     
-    // Initialize result to 1
-    uint8_t one_val = 1;
-    BigInt one = create_bigint(&one_val, 1);
-    BigInt temp_result = create_bigint(one.data, one.length);
-    
-    // Multiply all ciphertexts together modulo N^2
-    for (size_t i = 0; i < count; i++) {
-        BigInt temp;
-        if (modular_multiplication(&temp_result, &ciphertexts[i], &params->N_squared, &temp) != 0) {
-            free_bigint(&one);
-            free_bigint(&temp_result);
-            return -2; // Multiplication failed
-        }
-        
-        free_bigint(&temp_result);
-        temp_result = temp;
+    // Multiply the ciphertext with the running product modulo N^2
+    BigInt temp;
+    if (modular_multiplication(&params->running_product, ciphertext, &params->N_squared, &temp) != 0) {
+        return -2; // Multiplication failed
     }
     
-    // Copy the result
-    *result = create_bigint(temp_result.data, temp_result.length);
+    // Update the running product
+    free_bigint(&params->running_product);
+    params->running_product = temp;
     
-    // Clean up
-    free_bigint(&one);
-    free_bigint(&temp_result);
+    return 0;
+}
+
+int reset_running_product(AggregatorParams* params) {
+    if (!params) {
+        return -1; // Invalid parameters
+    }
+    
+    // Free the current running product
+    free_bigint(&params->running_product);
+    
+    // Reset to 1
+    uint8_t one_val = 1;
+    params->running_product = create_bigint(&one_val, 1);
+    
+    return 0;
+}
+
+int get_running_product(const AggregatorParams* params, BigInt* result) {
+    if (!params || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    // Copy the running product
+    *result = create_bigint(params->running_product.data, params->running_product.length);
     
     return 0;
 }
@@ -192,37 +185,15 @@ int recover_sum(const BigInt* P_prime, const AggregatorParams* params, BigInt* r
     return ret;
 }
 
-int compute_average(const BigInt* sum, size_t count, BigInt* result) {
-    if (!sum || count == 0 || !result) {
+int aggregate_votes_from_running_product(const BigInt* aux, AggregatorParams* params, BigInt* sum) {
+    if (!aux || !params || !sum) {
         return -1; // Invalid parameters
     }
     
-    // For simplicity, we'll just copy the sum for now
-    // In a real implementation, this would divide the sum by count
-    *result = create_bigint(sum->data, sum->length);
-    
-    // Divide by count (simplified)
-    // This is a very basic implementation that just divides the first byte
-    if (result->data[0] >= count) {
-        result->data[0] /= count;
-    } else {
-        // If the first byte is smaller than count, set it to 0
-        result->data[0] = 0;
-    }
-    
-    return 0;
-}
-
-int aggregate_votes(const BigInt* ciphertexts, size_t count, const BigInt* aux,
-                    const AggregatorParams* params, BigInt* sum, BigInt* average) {
-    if (!ciphertexts || count == 0 || !aux || !params || !sum) {
-        return -1; // Invalid parameters
-    }
-    
-    // Step 1: Multiply all ciphertexts
+    // Step 1: Get the running product
     BigInt product;
-    if (multiply_ciphertexts(ciphertexts, count, params, &product) != 0) {
-        return -2; // Multiplication failed
+    if (get_running_product(params, &product) != 0) {
+        return -2; // Failed to get running product
     }
     
     // Step 2: Raise to sk_A
@@ -248,17 +219,6 @@ int aggregate_votes(const BigInt* ciphertexts, size_t count, const BigInt* aux,
         return -5; // Recovery failed
     }
     
-    // Step 5: Compute the average (if requested)
-    if (average) {
-        if (compute_average(sum, count, average) != 0) {
-            free_bigint(&product);
-            free_bigint(&P);
-            free_bigint(&P_prime);
-            free_bigint(sum);
-            return -6; // Average computation failed
-        }
-    }
-    
     // Clean up
     free_bigint(&product);
     free_bigint(&P);
@@ -279,6 +239,7 @@ int aggregator_cleanup(AggregatorParams* params) {
     free_bigint(&params->sk_A);
     free_bigint(&params->sk_A_mod_N);
     free_bigint(&params->sk_A_inv);
+    free_bigint(&params->running_product);
     
     return 0;
 }
