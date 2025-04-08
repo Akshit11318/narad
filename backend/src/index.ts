@@ -92,26 +92,6 @@ app.get("/election/current", async (_req, res) => {
   }
 });
 
-app.post("/add-voter", auth, requireManager, async (req, res) => {
-  try {
-    const { electionKey, voterId } = req.body;
-    await program.methods
-      .addToVoterWhitelist(voterId)
-      .accounts({
-        electionData: new PublicKey(electionKey),
-        initiator: provider.wallet.publicKey,
-      } as any)
-      .rpc();
-
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({
-      error:
-        error instanceof Error ? error.message : "An unknown error occurred",
-    });
-  }
-});
-
 app.post("/add-candidate", auth, requireManager, async (req, res) => {
   try {
     const { electionId, candidateName } = req.body;
@@ -124,35 +104,6 @@ app.post("/add-candidate", auth, requireManager, async (req, res) => {
       .rpc();
 
     res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({
-      error:
-        error instanceof Error ? error.message : "An unknown error occurred",
-    });
-  }
-});
-
-app.post("/register-candidate", async (req, res) => {
-  try {
-    const { electionId, candidateName } = req.body;
-    const electionPubkey = new PublicKey(electionId);
-    const [candidateAccount] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("candidate"),
-        electionPubkey.toBuffer(),
-        Buffer.from(candidateName),
-      ],
-      program.programId
-    );
-    await program.methods
-      .registerCandidate(candidateName)
-      .accounts({
-        candidateData: candidateAccount,
-        electionData: electionPubkey,
-        initiator: provider.wallet.publicKey,
-      } as any)
-      .rpc();
-    res.json({ success: true, candidateAccount: candidateAccount.toString() });
   } catch (error) {
     res.status(500).json({
       error:
@@ -269,60 +220,6 @@ app.get("/election/:electionId/candidates", auth, async (req, res) => {
 });
 
 // Get candidate data
-app.get("/candidate/:electionId/:candidateName", async (req, res) => {
-  try {
-    const { electionId, candidateName } = req.params;
-    const electionPubkey = new PublicKey(electionId);
-
-    const [candidateAccount] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("candidate"),
-        electionPubkey.toBuffer(),
-        Buffer.from(candidateName),
-      ],
-      program.programId
-    );
-
-    const candidateData = await program.account.candidateData.fetch(
-      candidateAccount
-    );
-    res.json(candidateData);
-  } catch (error) {
-    res.status(500).json({
-      error:
-        error instanceof Error ? error.message : "An unknown error occurred",
-    });
-  }
-});
-
-// // Get current active election
-// app.get("/election/current", auth, async (_req, res) => {
-//   try {
-//     // Find election in "voting" stage
-//     const elections = await program.account.electionData.all([
-//       {
-//         memcmp: {
-//           offset: 0, // Adjust based on your struct layout
-//           bytes: bs58.encode(Buffer.from([1])) // Assuming 1 represents voting stage
-//         }
-//       }
-//     ]);
-
-//     if (elections.length === 0) {
-//       return res.status(404).json({ error: "No active election found" });
-//     }
-
-//     return res.json({
-//       id: elections[0].publicKey.toString(),
-//       ...elections[0].account
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       error: error instanceof Error ? error.message : "An unknown error occurred"
-//     });
-//   }
-// });
-
 // Check voter status
 app.get("/voter/status/:electionId", auth, async (req, res) => {
   try {

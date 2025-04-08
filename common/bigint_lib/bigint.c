@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/**
+/*
  * @brief Create a new BigInt from data
  *
  * This function allocates memory for a new BigInt and copies the provided data.
