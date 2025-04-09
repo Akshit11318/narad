@@ -90,6 +90,15 @@ int recover_sum(const BigInt* P_prime, const AggregatorParams* params, BigInt* r
 int aggregate_votes_from_running_product(const BigInt* aux, AggregatorParams* params, BigInt* sum);
 
 /**
+ * @brief Unpack votes from a BigInt result
+ * @param packed_votes The BigInt containing packed votes
+ * @param votes Array to store the unpacked votes
+ * @param max_votes Maximum number of votes to unpack
+ * @return Number of votes unpacked, or negative value on error
+ */
+int unpack_votes(const BigInt* packed_votes, uint32_t* votes, size_t max_votes);
+
+/**
  * @brief Clean up resources used by the aggregator
  * @param params Aggregator parameters to clean up
  * @return 0 on success, non-zero on failure

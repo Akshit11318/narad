@@ -227,6 +227,57 @@ int aggregate_votes_from_running_product(const BigInt* aux, AggregatorParams* pa
     return 0;
 }
 
+/**
+ * @brief Unpack votes from a BigInt result
+ * @param packed_votes The BigInt containing packed votes
+ * @param votes Array to store the unpacked votes
+ * @param max_votes Maximum number of votes to unpack
+ * @return Number of votes unpacked, or negative value on error
+ */
+int unpack_votes(const BigInt* packed_votes, uint32_t* votes, size_t num_candidates) {
+    if (!packed_votes || !votes || num_candidates == 0) {
+        return -1; // Invalid parameters
+    }
+    
+    // Each vote occupies 25 bits
+    const size_t BITS_PER_VOTE = 25;
+    const uint32_t VOTE_MASK = (1 << BITS_PER_VOTE) - 1; // Mask for 25 bits
+    
+    // Convert BigInt to a byte array for processing
+    const uint8_t* data = packed_votes->data;
+    size_t data_length = packed_votes->length;
+    
+    // Calculate how many votes we can extract (limited by data size and max_votes)
+    size_t total_bits = data_length * 8;
+    size_t possible_votes = total_bits / BITS_PER_VOTE;
+    size_t votes_to_extract = num_candidates;
+    
+    // Extract each vote from the packed data
+    for (size_t i = 0; i < votes_to_extract; i++) {
+        // Calculate bit position for this vote (reverse order from packing)
+        size_t vote_bit_position = (votes_to_extract - 1 - i) * BITS_PER_VOTE;
+        
+        // Extract the vote value
+        uint32_t vote_value = 0;
+        
+        for (size_t bit = 0; bit < BITS_PER_VOTE; bit++) {
+            size_t global_bit_pos = vote_bit_position + bit;
+            size_t byte_idx = global_bit_pos / 8;
+            size_t bit_idx = global_bit_pos % 8;
+            
+            if (byte_idx < data_length) {
+                if ((data[byte_idx] >> bit_idx) & 1) {
+                    vote_value |= (1 << bit);
+                }
+            }
+        }
+        
+        votes[i] = vote_value;
+    }
+    
+    return (int)votes_to_extract;
+}
+
 int aggregator_cleanup(AggregatorParams* params) {
     if (!params) {
         return -1; // Invalid parameters
