@@ -4,14 +4,28 @@ import {
   fetchAuxiliaryValue,
   submitAggregatedResult,
 } from "./api";
-import {
-  aggregatorLib,
-  AggregatorParamsType,
-  BigIntType,
-  createBigIntFromHex,
-  bigIntToNumber,
-  bigIntToString,
-} from "./ffi";
+import bindings from "bindings";
+
+// Load the native addon directly
+const addon = bindings("aggregator");
+
+// Define the BigInt structure to match the C structure
+interface BigIntType {
+  data: Buffer;
+  length: number;
+}
+
+// Define the AggregatorParams structure to match the C structure
+interface AggregatorParamsType {
+  N: BigIntType;
+  N_squared: BigIntType;
+  H: BigIntType;
+  sk_A: BigIntType;
+  sk_A_mod_N: BigIntType;
+  sk_A_inv: BigIntType;
+  running_product: BigIntType;
+  initialized: boolean;
+}
 
 /**
  * Initialize the aggregator with the necessary parameters
@@ -21,19 +35,18 @@ import {
  * @returns Initialized AggregatorParams
  */
 function initializeAggregator(nHex: string, hHex: string, skAHex: string): any {
-  const N = createBigIntFromHex(nHex);
-  const H = createBigIntFromHex(hHex);
-  const skA = createBigIntFromHex(skAHex);
+  const N = addon.createBigIntFromHex(nHex);
+  const H = addon.createBigIntFromHex(hHex);
+  const skA = addon.createBigIntFromHex(skAHex);
 
-  // Create an empty params object
-  const params = {} as AggregatorParamsType;
-  const result = aggregatorLib.aggregator_init(params, N, H, skA);
+  // Initialize the aggregator directly using the addon
+  const result = addon.aggregatorInit(N, H, skA);
 
   if (result !== 0) {
     throw new Error(`Failed to initialize aggregator: ${result}`);
   }
 
-  return params;
+  return {}; // Return an empty object as params are now managed by the native addon
 }
 
 /**
@@ -49,12 +62,15 @@ async function processAndAggregate(
   auxiliaryValue: string
 ): Promise<any> {
   // Reset the running product
-  aggregatorLib.reset_running_product(params.ref());
+  const resetResult = addon.resetRunningProduct();
+  if (resetResult !== 0) {
+    throw new Error(`Failed to reset running product: ${resetResult}`);
+  }
 
   // Process each ciphertext
   for (const ciphertextHex of ciphertexts) {
-    const ciphertext = createBigIntFromHex(ciphertextHex);
-    const result = aggregatorLib.add_ciphertext_to_product(ciphertext, params);
+    const ciphertext = addon.createBigIntFromHex(ciphertextHex);
+    const result = addon.addCiphertextToProduct(ciphertext);
 
     if (result !== 0) {
       throw new Error(`Failed to add ciphertext to product: ${result}`);
@@ -62,24 +78,17 @@ async function processAndAggregate(
   }
 
   // Create auxiliary value BigInt
-  const aux = createBigIntFromHex(auxiliaryValue);
+  const aux = addon.createBigIntFromHex(auxiliaryValue);
 
-  // Allocate result BigInt
-  const sum = {} as BigIntType;
+  // Aggregate votes directly using the addon
+  const aggregated = addon.aggregateVotesFromRunningProduct(aux);
 
-  // Aggregate votes
-  const result = aggregatorLib.aggregate_votes_from_running_product(
-    aux,
-    params,
-    sum
-  );
-
-  if (result !== 0) {
-    throw new Error(`Failed to aggregate votes: ${result}`);
+  if (typeof aggregated === "number") {
+    throw new Error(`Failed to aggregate votes: ${aggregated}`);
   }
 
-  // Return the BigInt object directly instead of converting to number
-  return sum;
+  // Return the BigInt object directly
+  return aggregated;
 }
 
 /**
@@ -89,24 +98,15 @@ async function processAndAggregate(
  * @returns Array of unpacked vote counts
  */
 export function unpackVotes(bigInt: any, maxVotes: number = 20): number[] {
-  // Allocate memory for the result array
-  const voteBuffer = Buffer.alloc(maxVotes * 4); // uint32_t is 4 bytes
-  const votePtr = { buffer: voteBuffer };
+  // Call the addon function directly to unpack votes
+  const unpackedVotes = addon.unpackVotes(bigInt, maxVotes);
 
-  // Call the C function to unpack votes
-  const votesUnpacked = aggregatorLib.unpack_votes(bigInt, votePtr, maxVotes);
-
-  if (votesUnpacked <= 0) {
-    throw new Error(`Failed to unpack votes: ${votesUnpacked}`);
+  if (typeof unpackedVotes === "number" && unpackedVotes <= 0) {
+    throw new Error(`Failed to unpack votes: ${unpackedVotes}`);
   }
 
-  // Convert the buffer to an array of numbers
-  const result: number[] = [];
-  for (let i = 0; i < votesUnpacked; i++) {
-    result.push(voteBuffer.readUInt32LE(i * 4));
-  }
-
-  return result;
+  // The addon returns an array directly, so we can just return it
+  return Array.from(unpackedVotes);
 }
 
 /**
@@ -145,12 +145,12 @@ async function main() {
     // For API submission, we need to convert the BigInt to a string representation
     // or modify the API to accept BigInt objects directly
     // For now, we'll use a string representation of the BigInt
-    const sumString = bigIntToString(sum);
+    const sumString = addon.bigIntToString(sum);
     await submitAggregatedResult(sumString);
     console.log("Aggregated result submitted successfully");
 
     // Clean up
-    aggregatorLib.aggregator_cleanup(params);
+    addon.aggregatorCleanup();
 
     return sum;
   } catch (error) {
