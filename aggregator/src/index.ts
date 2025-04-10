@@ -25,13 +25,9 @@ function initializeAggregator(nHex: string, hHex: string, skAHex: string): any {
   const H = createBigIntFromHex(hHex);
   const skA = createBigIntFromHex(skAHex);
 
-  const params = new AggregatorParamsType();
-  const result = aggregatorLib.aggregator_init(
-    params.ref(),
-    N.ref(),
-    H.ref(),
-    skA.ref()
-  );
+  // Create an empty params object
+  const params = {} as AggregatorParamsType;
+  const result = aggregatorLib.aggregator_init(params, N, H, skA);
 
   if (result !== 0) {
     throw new Error(`Failed to initialize aggregator: ${result}`);
@@ -58,10 +54,7 @@ async function processAndAggregate(
   // Process each ciphertext
   for (const ciphertextHex of ciphertexts) {
     const ciphertext = createBigIntFromHex(ciphertextHex);
-    const result = aggregatorLib.add_ciphertext_to_product(
-      ciphertext.ref(),
-      params.ref()
-    );
+    const result = aggregatorLib.add_ciphertext_to_product(ciphertext, params);
 
     if (result !== 0) {
       throw new Error(`Failed to add ciphertext to product: ${result}`);
@@ -72,13 +65,13 @@ async function processAndAggregate(
   const aux = createBigIntFromHex(auxiliaryValue);
 
   // Allocate result BigInt
-  const sum = new BigIntType();
+  const sum = {} as BigIntType;
 
   // Aggregate votes
   const result = aggregatorLib.aggregate_votes_from_running_product(
-    aux.ref(),
-    params.ref(),
-    sum.ref()
+    aux,
+    params,
+    sum
   );
 
   if (result !== 0) {
@@ -98,14 +91,10 @@ async function processAndAggregate(
 export function unpackVotes(bigInt: any, maxVotes: number = 20): number[] {
   // Allocate memory for the result array
   const voteBuffer = Buffer.alloc(maxVotes * 4); // uint32_t is 4 bytes
-  const votePtr = ref.address(voteBuffer);
+  const votePtr = { buffer: voteBuffer };
 
   // Call the C function to unpack votes
-  const votesUnpacked = aggregatorLib.unpack_votes(
-    bigInt.ref(),
-    votePtr,
-    maxVotes
-  );
+  const votesUnpacked = aggregatorLib.unpack_votes(bigInt, votePtr, maxVotes);
 
   if (votesUnpacked <= 0) {
     throw new Error(`Failed to unpack votes: ${votesUnpacked}`);
@@ -161,7 +150,7 @@ async function main() {
     console.log("Aggregated result submitted successfully");
 
     // Clean up
-    aggregatorLib.aggregator_cleanup(params.ref());
+    aggregatorLib.aggregator_cleanup(params);
 
     return sum;
   } catch (error) {
