@@ -1,0 +1,48 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Table to store system parameters
+model SystemParams {
+  id        Int      @id @default(autoincrement())
+  N         String   // Modulus N in hex
+  H         String   // Hash H in hex
+  skA       String?  // Aggregator's secret key in hex
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_params")
+}
+
+// Table to store voter data (ski, ci, auxi)
+model VoterData {
+  id         Int      @id @default(autoincrement())
+  voterId    String   @unique // Unique identifier for the voter
+  ski        String   // Secret key in hex
+  ci         String   // Ciphertext in hex
+  auxi       String   // Auxiliary value in hex
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("voter_data")
+}
+
+// Table to store aggregated results
+model AggregatedResult {
+  id           Int      @id @default(autoincrement())
+  aux          String   // Final auxiliary value in hex
+  result       String   // Aggregated result in hex
+  decodedVotes String   // JSON string of decoded vote counts
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("aggregated_results")
+}
