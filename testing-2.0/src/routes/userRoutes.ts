@@ -30,10 +30,10 @@ router.get('/params', async (req, res) => {
 // Submit encrypted vote (ci)
 router.post('/vote', async (req, res) => {
   try {
-    const { voterId, ci, ski, auxi } = req.body;
+    const { voterId, ci, auxi } = req.body;
     
-    if (!voterId || !ci || !ski || !auxi) {
-      return res.status(400).json({ error: 'Missing required fields: voterId, ci, ski, auxi' });
+    if (!voterId || !ci || !auxi) {
+      return res.status(400).json({ error: 'Missing required fields: voterId, ci, auxi' });
     }
 
     // Check if this voter has already voted
@@ -50,7 +50,6 @@ router.post('/vote', async (req, res) => {
       data: {
         voterId,
         ci,
-        ski,
         auxi
       }
     });

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#2a2a2a" rx="10" ry="10"/>
+  <circle cx="100" cy="70" r="40" fill="#a78bfa"/>
+  <rect x="60" y="120" width="80" height="60" rx="5" ry="5" fill="#a78bfa"/>
+  <text x="100" y="180" font-family="Arial" font-size="16" fill="white" text-anchor="middle">Candidate 2</text>
+</svg>

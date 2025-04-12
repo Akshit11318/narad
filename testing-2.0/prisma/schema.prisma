@@ -26,7 +26,6 @@ model SystemParams {
 model VoterData {
   id         Int      @id @default(autoincrement())
   voterId    String   @unique // Unique identifier for the voter
-  ski        String   // Secret key in hex
   ci         String   // Ciphertext in hex
   auxi       String   // Auxiliary value in hex
   createdAt  DateTime @default(now())
