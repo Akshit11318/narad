@@ -1,7 +1,7 @@
 import * as dotenv from "dotenv";
 import {
-  fetchCiphertexts,
-  fetchAuxiliaryValue,
+  fetchElectionParams,
+  fetchCiphertextsAndAux,
   submitAggregatedResult,
 } from "./api";
 import bindings from "bindings";
@@ -117,17 +117,18 @@ async function main() {
     // Load environment variables
     dotenv.config();
 
-    // These would typically be loaded from a secure configuration
-    const nHex = process.env.N_HEX || "0x1234567890abcdef"; // Example value
-    const hHex = process.env.H_HEX || "0xabcdef1234567890"; // Example value
-    const skAHex = process.env.SK_A_HEX || "0x0123456789abcdef"; // Example value
+    // Fetch election parameters from the backend
+    const { N: nHex, H: hHex, Ska: skAHex } = await fetchElectionParams();
+    console.log("Fetched election parameters from backend");
 
     // Initialize the aggregator
     const params = initializeAggregator(nHex, hHex, skAHex);
 
-    // Fetch ciphertexts and auxiliary value
-    const ciphertexts = await fetchCiphertexts();
-    const auxiliaryValue = await fetchAuxiliaryValue();
+    // Fetch ciphertexts and auxiliary value in a single request
+    const { ciphertexts: ciphertextData, aux: auxiliaryValue } = await fetchCiphertextsAndAux();
+    
+    // Extract just the ciphertext values from the data
+    const ciphertexts = ciphertextData.map(data => data.ci);
 
     console.log(`Fetched ${ciphertexts.length} ciphertexts`);
 

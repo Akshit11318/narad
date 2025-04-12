@@ -3,8 +3,8 @@ import prisma from '../prisma';
 
 const router = Router();
 
-// Get system parameters, ciphertexts, and auxiliary product for aggregation
-router.get('/data', async (req, res) => {
+// Get system parameters for aggregator initialization
+router.get('/params', async (req, res) => {
   try {
     // Get the most recent system parameters
     const systemParams = await prisma.systemParams.findFirst({
@@ -15,34 +15,18 @@ router.get('/data', async (req, res) => {
       return res.status(404).json({ error: 'System parameters not found' });
     }
 
-    // Get all ciphertexts
-    const voterData = await prisma.voterData.findMany({
-      select: { voterId: true, ci: true }
-    });
-
-    // Get auxiliary product
-    const aggregatedResult = await prisma.aggregatedResult.findFirst({
-      orderBy: { createdAt: 'desc' }
-    });
-
-    if (!aggregatedResult || !aggregatedResult.aux) {
-      return res.status(404).json({ error: 'Auxiliary product not found. Collector must compute it first.' });
-    }
-
     res.status(200).json({
-      params: {
-        N: systemParams.N,
-        H: systemParams.H,
-        skA: systemParams.skA
-      },
-      ciphertexts: voterData.map(v => v.ci),
-      aux: aggregatedResult.aux
+      N: systemParams.N,
+      H: systemParams.H,
+      skA: systemParams.skA
     });
   } catch (error) {
-    console.error('Failed to fetch aggregation data:', error);
-    res.status(500).json({ error: 'Failed to fetch aggregation data' });
+    console.error('Failed to fetch system parameters:', error);
+    res.status(500).json({ error: 'Failed to fetch system parameters' });
   }
 });
+
+
 
 // Submit aggregation result
 router.post('/result', async (req, res) => {
@@ -82,6 +66,36 @@ router.post('/result', async (req, res) => {
   } catch (error) {
     console.error('Failed to submit aggregation result:', error);
     res.status(500).json({ error: 'Failed to submit aggregation result' });
+  }
+});
+
+// Get all ciphertexts (ci) and auxiliary value (aux)
+router.get('/ciphertexts-and-aux', async (req, res) => {
+  try {
+    // Get all voter data with ciphertexts
+    const voterData = await prisma.voterData.findMany({
+      select: { voterId: true, ci: true }
+    });
+
+    // Get the most recent auxiliary value
+    const aggregatedResult = await prisma.aggregatedResult.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { aux: true }
+    });
+
+    // Extract ciphertexts
+    const ciphertexts = voterData.map(voter => ({
+      voterId: voter.voterId,
+      ci: voter.ci
+    }));
+
+    res.status(200).json({
+      ciphertexts: ciphertexts,
+      aux: aggregatedResult?.aux || ''
+    });
+  } catch (error) {
+    console.error('Failed to fetch ciphertexts and auxiliary value:', error);
+    res.status(500).json({ error: 'Failed to fetch ciphertexts and auxiliary value' });
   }
 });
 

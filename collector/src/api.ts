@@ -13,7 +13,7 @@ const API_URL = process.env.API_URL || "http://localhost:3000";
  */
 export async function fetchNAndH(): Promise<{ N: string; H: string }> {
   try {
-    const response = await axios.get(`${API_URL}/election-params`);
+    const response = await axios.get(`${API_URL}/params`);
     return {
       N: response.data.N,
       H: response.data.H,

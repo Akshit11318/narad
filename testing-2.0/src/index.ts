@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { collectorRoutes } from './routes/collectorRoutes';
 import { aggregatorRoutes } from './routes/aggregatorRoutes';
 import { userRoutes } from './routes/userRoutes';
+import prisma from './prisma';
 
 // Load environment variables
 dotenv.config();
@@ -40,8 +41,39 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
+// Initialize system parameters
+async function initializeSystemParams() {
+  try {
+    // Check if system parameters already exist
+    const existingParams = await prisma.systemParams.findFirst();
+    
+    if (!existingParams) {
+      // Create default system parameters
+      // These values should be replaced with actual secure values in production
+      const defaultParams = {
+        N: "B7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF324E7738926CFBE5F4BF8D8D8C31D763DA06C80ABB1185EB4F7C7B5757F5958",
+        H: "5FECEB66FFC86F38D952786C6D696C79C2DBC239DD4E91B46729D73A27FB57E9",
+        skA: "1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF"
+      };
+      
+      await prisma.systemParams.create({
+        data: defaultParams
+      });
+      
+      console.log('System parameters initialized successfully');
+    } else {
+      console.log('System parameters already exist');
+    }
+  } catch (error) {
+    console.error('Failed to initialize system parameters:', error);
+  }
+}
+
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+  
+  // Initialize system parameters on server start
+  await initializeSystemParams();
 });

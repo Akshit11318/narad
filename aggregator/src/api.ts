@@ -4,8 +4,42 @@ import * as dotenv from "dotenv";
 // Load environment variables
 dotenv.config();
 
-// Define the API endpoint to fetch ciphertexts
+// Define the API endpoint to fetch ciphertexts and params
 const API_URL = process.env.API_URL || "http://localhost:3000";
+
+// Define the interface for election parameters
+interface ElectionParams {
+  N: string;
+  H: string;
+  Ska: string;
+}
+
+// Define the interface for ciphertext data
+interface CiphertextData {
+  voterId: string;
+  ci: string;
+}
+
+// Define the interface for the combined response
+interface CiphertextsAndAuxResponse {
+  ciphertexts: CiphertextData[];
+  aux: string;
+}
+
+
+/**
+ * Fetch election parameters from the API
+ * @returns Object containing N, H, and Ska values
+ */
+export async function fetchElectionParams(): Promise<ElectionParams> {
+  try {
+    const response = await axios.get(`${API_URL}/params`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching election parameters:", error);
+    throw error;
+  }
+}
 
 /**
  * Fetch ciphertexts from the API
@@ -17,6 +51,20 @@ export async function fetchCiphertexts(): Promise<string[]> {
     return response.data.ciphertexts;
   } catch (error) {
     console.error("Error fetching ciphertexts:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch both ciphertexts and auxiliary value in a single request
+ * @returns Object containing ciphertexts array and auxiliary value
+ */
+export async function fetchCiphertextsAndAux(): Promise<CiphertextsAndAuxResponse> {
+  try {
+    const response = await axios.get(`${API_URL}/aggregator/ciphertexts-and-aux`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching ciphertexts and auxiliary value:", error);
     throw error;
   }
 }
