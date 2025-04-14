@@ -153,6 +153,32 @@ int bigint_subtract(const BigInt* a, const BigInt* b, BigInt* result);
  */
 int bigint_divide(const BigInt* a, const BigInt* b, BigInt* quotient, BigInt* remainder);
 
+
+/**
+ * @brief Check if a BigInt is zero
+ *
+ * @param num Pointer to the BigInt to check
+ * @return 1 if the BigInt is zero, 0 otherwise
+ */
+ int is_zero(const BigInt* num);
+
+ /**
+  * @brief Check if a BigInt is negative
+  *
+  * @param num Pointer to the BigInt to check
+  * @return 1 if the BigInt is negative, 0 otherwise
+  */
+ int is_negative(const BigInt* num);
+
+/**
+ * @brief Add two BigInts: result = a + b
+ * @param a First operand
+ * @param b Second operand
+ * @param result Pointer to store the result
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int bigint_add(const BigInt* a, const BigInt* b, BigInt* result);
+
 #ifdef __cplusplus
 }
 #endif

@@ -483,7 +483,6 @@ int compare_bigint(const BigInt* a, const BigInt* b) {
     // Equal
     return 0;
 }
-
 /**
  * @brief Calculate the modular inverse of a BigInt
  *
@@ -494,11 +493,30 @@ int compare_bigint(const BigInt* a, const BigInt* b) {
  * @param result Pointer to store the result
  * @return 0 on success, -1 on invalid parameters, -2 if inverse does not exist
  */
-int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
+ int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
     if (!a || !modulus || !result) {
         fprintf(stderr, "[ERROR] Invalid parameters in modular_inverse\n");
         return -1;
     }
+
+    // Create zero for comparison
+    uint8_t zero_val = 0;
+    BigInt zero = create_bigint(&zero_val, 1);
+    
+    // Check if modulus is zero
+    if (compare_bigint(modulus, &zero) == 0) {
+        fprintf(stderr, "[ERROR] Modulus cannot be zero\n");
+        free_bigint(&zero);
+        return -1;
+    }
+    
+    // Check if a is zero
+    if (compare_bigint(a, &zero) == 0) {
+        fprintf(stderr, "[ERROR] Input 'a' cannot be zero (no inverse exists)\n");
+        free_bigint(&zero);
+        return -2;
+    }
+    free_bigint(&zero);
 
     fprintf(stderr, "[DEBUG] Starting modular inverse calculation\n");
 
@@ -507,7 +525,7 @@ int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
     BigInt r = create_bigint(a->data, a->length);
     
     uint8_t one_val = 1;
-    uint8_t zero_val = 0;
+    // uint8_t zero_val = 0;
     BigInt old_s = create_bigint(&zero_val, 1);
     BigInt s = create_bigint(&one_val, 1);
     
@@ -516,13 +534,33 @@ int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
     // Extended Euclidean algorithm
     int iteration_count = 0;
     const int MAX_ITERATIONS = 1000; // Prevent infinite loops
-    size_t prev_length = r.length;
     
-    while ((r.length > 1 || (r.length == 1 && r.data[0] != 0)) && iteration_count < MAX_ITERATIONS) {
+    // We'll use a different approach to detect if we're making progress
+    BigInt previous_r = {NULL, 0};
+    
+    while (!is_zero(&r) && iteration_count < MAX_ITERATIONS) {
         iteration_count++;
+        
+        // Store previous r for comparison
+        if (previous_r.data) {
+            free_bigint(&previous_r);
+        }
+        previous_r = create_bigint(r.data, r.length);
+        
         // Calculate quotient and remainder
         BigInt quotient = {NULL, 0};
         BigInt temp_r = {NULL, 0};
+        
+        // Explicit check to avoid division by zero
+        if (is_zero(&r)) {
+            fprintf(stderr, "[ERROR] Division by zero detected in modular_inverse\n");
+            free_bigint(&old_r);
+            free_bigint(&r);
+            free_bigint(&old_s);
+            free_bigint(&s);
+            free_bigint(&previous_r);
+            return -2;
+        }
         
         // Perform division to get quotient and remainder
         if (bigint_divide(&old_r, &r, &quotient, &temp_r) != 0) {
@@ -531,21 +569,22 @@ int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
             free_bigint(&r);
             free_bigint(&old_s);
             free_bigint(&s);
+            free_bigint(&previous_r);
             return -2;
         }
         
-        // Check if remainder is actually decreasing
-        if (temp_r.length >= prev_length) {
-            fprintf(stderr, "[ERROR] Remainder not decreasing in modular_inverse after %d iterations\n", iteration_count);
+        // Verify we're making progress by ensuring remainder is smaller than divisor
+        if (compare_bigint(&temp_r, &r) >= 0) {
+            fprintf(stderr, "[ERROR] Algorithm not making progress in modular_inverse (remainder >= divisor)\n");
             free_bigint(&old_r);
             free_bigint(&r);
             free_bigint(&old_s);
             free_bigint(&s);
             free_bigint(&quotient);
             free_bigint(&temp_r);
+            free_bigint(&previous_r);
             return -2;
         }
-        prev_length = temp_r.length;
 
         // Update r values: old_r = r, r = temp_r
         free_bigint(&old_r);
@@ -561,6 +600,7 @@ int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
             free_bigint(&old_s);
             free_bigint(&s);
             free_bigint(&quotient);
+            free_bigint(&previous_r);
             return -2;
         }
 
@@ -573,6 +613,7 @@ int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
             free_bigint(&s);
             free_bigint(&quotient);
             free_bigint(&temp_product);
+            free_bigint(&previous_r);
             return -2;
         }
 
@@ -584,24 +625,38 @@ int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
         free_bigint(&quotient);
         free_bigint(&temp_product);
     }
+    
+    if (previous_r.data) {
+        free_bigint(&previous_r);
+    }
+
+    // Check if we hit the iteration limit
+    if (iteration_count >= MAX_ITERATIONS) {
+        fprintf(stderr, "[ERROR] Maximum iterations exceeded in modular_inverse\n");
+        free_bigint(&old_r);
+        free_bigint(&r);
+        free_bigint(&old_s);
+        free_bigint(&s);
+        return -2;
+    }
 
     // Check if inverse exists (gcd should be 1)
     BigInt one = create_bigint(&one_val, 1);
     if (compare_bigint(&old_r, &one) != 0) {
-        fprintf(stderr, "[ERROR] Modular inverse does not exist\n");
+        fprintf(stderr, "[ERROR] Modular inverse does not exist (gcd != 1)\n");
         free_bigint(&old_r);
         free_bigint(&r);
         free_bigint(&old_s);
         free_bigint(&s);
         free_bigint(&one);
-        return -3;
+        return -2;
     }
     free_bigint(&one);
 
     // Make sure the result is positive
-    while (old_s.length > 0 && old_s.data[old_s.length - 1] & 0x80) {
+    while (is_negative(&old_s)) {
         BigInt temp = {NULL, 0};
-        if (modular_addition(&old_s, modulus, modulus, &temp) != 0) {
+        if (bigint_add(&old_s, modulus, &temp) != 0) {
             fprintf(stderr, "[ERROR] Failed to make result positive\n");
             free_bigint(&old_r);
             free_bigint(&r);
@@ -623,6 +678,86 @@ int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
     free_bigint(&s);
 
     fprintf(stderr, "[DEBUG] Modular inverse calculation completed successfully\n");
+    return 0;
+}
+
+// Helper function to check if a BigInt is zero
+int is_zero(const BigInt* num) {
+    if (!num || !num->data) return 1; // Treat NULL as zero
+    
+    for (size_t i = 0; i < num->length; i++) {
+        if (num->data[i] != 0) {
+            return 0; // Not zero
+        }
+    }
+    return 1; // Is zero
+}
+
+// Helper function to check if a BigInt is negative
+int is_negative(const BigInt* num) {
+    if (!num || !num->data || num->length == 0) return 0;
+    
+    // Check if the most significant bit is set (indicating negative in two's complement)
+    return (num->data[num->length - 1] & 0x80) != 0;
+}
+
+/**
+ * @brief Add two BigInts: result = a + b
+ *
+ * This function adds two BigInts and stores the result in a new BigInt.
+ * The result will have a length equal to the maximum of the input lengths plus one
+ * to accommodate any potential carry.
+ *
+ * @param a First operand
+ * @param b Second operand
+ * @param result Pointer to store the result
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int bigint_add(const BigInt* a, const BigInt* b, BigInt* result) {
+    if (!a || !b || !result || !a->data || !b->data) {
+        return -1; // Invalid parameters
+    }
+    
+    // Determine the maximum length needed for the sum
+    size_t max_length = (a->length > b->length) ? a->length : b->length;
+    max_length++; // Add 1 for potential carry
+    
+    // Create a new BigInt for the result
+    BigInt temp = create_bigint(NULL, max_length);
+    if (!temp.data) {
+        return -2; // Memory allocation failure
+    }
+    
+    // Perform addition with carry
+    uint16_t carry = 0;
+    for (size_t i = 0; i < max_length; i++) {
+        uint16_t sum = carry;
+        
+        // Add from first number if within its length
+        if (i < a->length) {
+            sum += a->data[i];
+        }
+        
+        // Add from second number if within its length
+        if (i < b->length) {
+            sum += b->data[i];
+        }
+        
+        temp.data[i] = sum & 0xFF; // Store the lower byte
+        carry = sum >> 8; // Keep the carry for next iteration
+    }
+    
+    // Remove leading zeros
+    while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
+        temp.length--;
+    }
+    
+    // Copy the result
+    *result = create_bigint(temp.data, temp.length);
+    
+    // Clean up
+    free_bigint(&temp);
+    
     return 0;
 }
 
@@ -698,77 +833,106 @@ int bigint_subtract(const BigInt* a, const BigInt* b, BigInt* result) {
  */
 int bigint_divide(const BigInt* a, const BigInt* b, BigInt* quotient, BigInt* remainder) {
     if (!a || !b || !quotient || !remainder) {
-        fprintf(stderr, "[ERROR] Invalid parameters in bigint_divide\n");
-        return -1;
+        return -1; // Invalid parameters
     }
-
-    // Check for division by zero
-    uint8_t zero = 0;
-    BigInt zero_bigint = create_bigint(&zero, 1);
-    if (compare_bigint(b, &zero_bigint) == 0) {
-        fprintf(stderr, "[ERROR] Division by zero\n");
-        free_bigint(&zero_bigint);
-        return -2;
+    
+    if (b->length == 0 || (b->length == 1 && b->data[0] == 0)) {
+        return -2; // Division by zero
     }
-    free_bigint(&zero_bigint);
-
+    
     // Initialize quotient to 0 and remainder to a
     uint8_t zero_val = 0;
     *quotient = create_bigint(&zero_val, 1);
     *remainder = create_bigint(a->data, a->length);
-
+    
     // If a < b, quotient is 0 and remainder is a
     if (compare_bigint(a, b) < 0) {
         return 0;
     }
 
     // Initialize temporary variables for the division process
-    BigInt current_multiple = create_bigint(b->data, b->length);
-    BigInt next_multiple = create_bigint(NULL, b->length + 1);
-    BigInt quotient_part = create_bigint(&zero_val, 1);
     uint8_t one_val = 1;
     BigInt one = create_bigint(&one_val, 1);
-
-    // Find the largest multiple of b that's <= a
-    while (compare_bigint(&current_multiple, remainder) <= 0) {
-        // Save current values
-        BigInt temp_multiple = current_multiple;
-        BigInt temp_quotient_part = quotient_part;
-
-        // Double the values
-        multiply_bigint(&current_multiple, &one, &next_multiple);
-        multiply_bigint(&quotient_part, &one, &quotient_part);
-
-        // If next multiple would be too large, use current values
-        if (compare_bigint(&next_multiple, remainder) > 0) {
-            // Subtract current multiple from remainder
-            BigInt new_remainder;
-            bigint_subtract(remainder, &temp_multiple, &new_remainder);
-            free_bigint(remainder);
-            *remainder = new_remainder;
-
-            // Add current quotient part to result
-            BigInt new_quotient;
-            modular_addition(quotient, &temp_quotient_part, b, &new_quotient);
-            free_bigint(quotient);
-            *quotient = new_quotient;
-
-            // Reset for next iteration
-            current_multiple = create_bigint(b->data, b->length);
-            quotient_part = create_bigint(&one_val, 1);
-        } else {
-            current_multiple = next_multiple;
+    
+    // Binary long division algorithm
+    while (compare_bigint(remainder, b) >= 0) {
+        // Find the largest power of 2 such that (b * 2^k) <= remainder
+        BigInt temp_multiple = create_bigint(b->data, b->length);
+        BigInt temp_quotient = create_bigint(&one_val, 1);
+        
+        while (1) {
+            BigInt next_multiple;
+            if (multiply_bigint(&temp_multiple, &one, &next_multiple) != 0) {
+                free_bigint(&temp_multiple);
+                free_bigint(&temp_quotient);
+                free_bigint(&one);
+                return -1;
+            }
+            
+            if (compare_bigint(&next_multiple, remainder) > 0) {
+                free_bigint(&next_multiple);
+                break;
+            }
+            
+            BigInt next_quotient;
+            if (multiply_bigint(&temp_quotient, &one, &next_quotient) != 0) {
+                free_bigint(&next_multiple);
+                free_bigint(&temp_multiple);
+                free_bigint(&temp_quotient);
+                free_bigint(&one);
+                return -1;
+            }
+            
             free_bigint(&temp_multiple);
-            free_bigint(&temp_quotient_part);
+            free_bigint(&temp_quotient);
+            
+            temp_multiple = next_multiple;
+            temp_quotient = next_quotient;
         }
+        
+        // Subtract from remainder and add to quotient
+        BigInt new_remainder;
+        if (bigint_subtract(remainder, &temp_multiple, &new_remainder) != 0) {
+            free_bigint(&temp_multiple);
+            free_bigint(&temp_quotient);
+            free_bigint(&one);
+            return -1;
+        }
+        free_bigint(remainder);
+        *remainder = new_remainder;
+        
+        // Add temp_quotient to quotient using regular addition
+        BigInt new_quotient;
+        size_t max_len = (quotient->length > temp_quotient.length) ? quotient->length : temp_quotient.length;
+        new_quotient = create_bigint(NULL, max_len + 1);
+        
+        uint16_t carry = 0;
+        for (size_t i = 0; i < max_len || carry; i++) {
+            uint16_t sum = carry;
+            if (i < quotient->length) sum += quotient->data[i];
+            if (i < temp_quotient.length) sum += temp_quotient.data[i];
+            
+            if (i < new_quotient.length) {
+                new_quotient.data[i] = sum & 0xFF;
+                carry = sum >> 8;
+            }
+        }
+        
+        // Remove leading zeros
+        while (new_quotient.length > 1 && new_quotient.data[new_quotient.length - 1] == 0) {
+            new_quotient.length--;
+        }
+        
+        free_bigint(quotient);
+        *quotient = new_quotient;
+        
+        free_bigint(&temp_multiple);
+        free_bigint(&temp_quotient);
     }
 
     // Clean up
-    free_bigint(&current_multiple);
-    free_bigint(&next_multiple);
-    free_bigint(&quotient_part);
     free_bigint(&one);
-
+    
     return 0;
 }
 
