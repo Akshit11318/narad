@@ -17,7 +17,8 @@ router.get('/params', async (req, res) => {
 
     res.status(200).json({
       N: systemParams.N,
-      H: systemParams.H
+      H: systemParams.H,
+      skA: systemParams.skA
     });
   } catch (error) {
     console.error('Failed to fetch system parameters:', error);
@@ -26,7 +27,7 @@ router.get('/params', async (req, res) => {
 });
 
 // Get all auxiliary values
-router.get('/auxiliary', async (req, res) => {
+router.get('/fetch-auxiliary', async (req, res) => {
   try {
     // Get all voter data with auxiliary values
     const voterData = await prisma.voterData.findMany({
@@ -41,7 +42,7 @@ router.get('/auxiliary', async (req, res) => {
 });
 
 // Submit computed auxiliary product (aux)
-router.post('/auxiliary', async (req, res) => {
+router.post('/aux', async (req, res) => {
   try {
     const { aux } = req.body;
     

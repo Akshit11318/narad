@@ -337,12 +337,15 @@ export async function encryptVotePaillier(
     throw new Error('Invalid cryptographic parameters: H or N is empty');
   }
 
-  console.log('Encryption parameters:', {
-    voteLength: voteUint32.length,
-    hLength: hUint8.length,
-    nLength: nUint8.length,
-    vote: Array.from(voteUint32)
-  });
+  // Detailed logging of the vote array before encryption
+  console.log('=== VOTE ARRAY BEFORE ENCRYPTION ===');
+  console.log('Vote array:', Array.from(voteUint32));
+  console.log('Vote array length:', voteUint32.length);
+  console.log('Vote array format: One "1" at the selected candidate position, rest are "0"s');
+  console.log('=== ENCRYPTION PARAMETERS ===');
+  console.log('H length:', hUint8.length, 'bytes');
+  console.log('N length:', nUint8.length, 'bytes');
+  console.log('=================================');
 
   // Copy arrays to WebAssembly memory
   const voteWasm = copyUint32ArrayToWasm(module, voteUint32);
@@ -565,7 +568,7 @@ function hexToUint8Array(hexString: string): Uint8Array {
  * Fetch election parameters from the backend
  * @returns Object containing the fetched parameters (n, h, ska)
  */
-export async function fetchElectionParams(): Promise<{ n: Uint8Array; h: Uint8Array; ska?: Uint8Array }> {
+export async function fetchElectionParams(): Promise<{ n: Uint8Array; h: Uint8Array; ska?: Uint8Array | number[] }> {
   try {
     const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
     const response = await fetch(`${backendUrl}/api/user/params`);
@@ -603,7 +606,7 @@ export async function fetchElectionParams(): Promise<{ n: Uint8Array; h: Uint8Ar
  * Setup the election by initializing crypto parameters and generating keys
  * @returns Object containing the initialized parameters (n, h, ska)
  */
-export async function setupElection(): Promise<{ n: Uint8Array; h: Uint8Array; ska?: Uint8Array }> {
+export async function setupElection(): Promise<{ n: Uint8Array; h: Uint8Array; ska?: Uint8Array | number[] }> {
   try {
     // Fetch parameters from backend - no fallback to defaults
     const params = await fetchElectionParams();
@@ -647,24 +650,48 @@ export function formatByteArray(array: Uint8Array | number[] | null): string {
 export async function submitVote(
   candidateId: number,
   voterAddress: string,
-  electionParams: { n: Uint8Array | number[]; h: Uint8Array | number[] }
+  electionParams: { n: Uint8Array | number[]; h: Uint8Array | number[]; ska?: Uint8Array | number[] }
 ): Promise<any> {
   if (candidateId === null) {
     throw new Error("Please select a candidate");
   }
 
-  const { n, h } = electionParams;
+  const { n, h, ska } = electionParams;
   if (!n || !h) {
     throw new Error("Cryptographic parameters not initialized");
   }
 
-  // Compute auxiliary key directly since parameters are already initialized
-  await computeAuxiliaryKey(n);
+  // First, we need the aggregator's secret key (skA) from the election parameters
+  if (!ska) {
+    throw new Error("Aggregator's secret key (skA) is required but not provided");
+  }
+  
+  // Step 1: Generate client's secret key if not already done
+  const secretKeyResult = await generateSecretKey(n);
+  if (secretKeyResult !== 0) {
+    throw new Error(`Failed to generate client secret key: ${secretKeyResult}`);
+  }
+  
+  // Step 2: Compute the aggregator's public key (pk_A = H^sk_A)
+  const pkAResult = await computeAggregatorPublicKey(h, ska, n);
+  if (pkAResult !== 0) {
+    throw new Error(`Failed to compute aggregator public key: ${pkAResult}`);
+  }
+  
+  // Step 3: Now compute the auxiliary key (aux_i = pk_A^sk_i)
+  const auxResult = await computeAuxiliaryKey(n);
+  if (auxResult !== 0) {
+    throw new Error(`Failed to compute auxiliary key: ${auxResult}`);
+  }
 
   // Create a vote array initialized with zeros and set the selected candidate's position to 1
   const numCandidates = 4; // Match the number of candidates in the UI
   const voteArray = new Uint32Array(numCandidates).fill(0);
   voteArray[candidateId - 1] = 1; // Adjust index since candidateId is 1-based
+  
+  // Debug: Log the raw vote array before encryption
+  console.log("Raw vote array before encryption:", Array.from(voteArray));
+  
   const encryptedVote = await encryptVotePaillier(voteArray, h, n);
   
   // Get auxiliary key after it's been computed
@@ -689,7 +716,7 @@ export async function submitVote(
     },
     body: JSON.stringify({
       voterId: voterAddress,
-      ci: [encryptedVoteHex], // Send encrypted vote in hex format
+      ci: encryptedVoteHex, // Send encrypted vote as a string, not an array
       auxi: auxiliaryKeyHex, // Send auxiliary key in hex format
     }),
   });

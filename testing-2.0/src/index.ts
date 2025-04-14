@@ -47,22 +47,25 @@ async function initializeSystemParams() {
     // Check if system parameters already exist
     const existingParams = await prisma.systemParams.findFirst();
     
-    if (!existingParams) {
-      // Create default system parameters
-      // These values should be replaced with actual secure values in production
-      const defaultParams = {
-        N: "a94337c30ddffe19568c42e4865e088c756e023111e305c8e7454e6ef12fd85e99c68e306cd6a6945e78915d1aba494ae575fa174a82abd4c2c7c66dd2982a6a",
-        H: "d5fe5496895615b93b7bd501f94c390bdb942bf41ab18d1917dfd3aefc1e1952f23f4504700b5eeec7186bc6dec990db64b9ea1eadce566e21b6f8429565cc0",
-        skA: "1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF"
-      };
-      
+    // Always override existing parameters to ensure uniformity
+    const defaultParams = {
+      N: "a94337c30ddffe19568c42e4865e088c756e023111e305c8e7454e6ef12fd85e99c68e306cd6a6945e78915d1aba494ae575fa174a82abd4c2c7c66dd2982a6a",
+      H: "d5fe5496895615b93b7bd501f94c390bdb942bf41ab18d1917dfd3aefc1e1952f23f4504700b5eeec7186bc6dec990db64b9ea1eadce566e21b6f8429565cc0", 
+      skA: "1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF"
+    };
+
+    if (existingParams) {
+      await prisma.systemParams.update({
+        where: { id: existingParams.id },
+        data: defaultParams
+      });
+      console.log('System parameters updated successfully');
+    } else {
+      // Create new parameters if none exist
       await prisma.systemParams.create({
         data: defaultParams
       });
-      
       console.log('System parameters initialized successfully');
-    } else {
-      console.log('System parameters already exist');
     }
   } catch (error) {
     console.error('Failed to initialize system parameters:', error);

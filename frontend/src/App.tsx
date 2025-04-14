@@ -48,7 +48,7 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
       await submitVote(
         selectedCandidate,
         "voter",
-        { n: electionData.n, h: electionData.h }
+        { n: electionData.n, h: electionData.h, ska: electionData.ska }
       );
 
       toast.success("Vote submitted successfully!");
@@ -133,27 +133,30 @@ function App() {
 
   // Load WebAssembly module and initialize crypto parameters on component mount
   useEffect(() => {
+    // Track initialization state to prevent duplicate logging
+    let isInitialized = false;
+
     const setup = async () => {
+      if (isInitialized) return;
+      
       try {
+        console.log("Starting application setup...");
+        
         // Load WASM module first
         await loadWasmModule();
         setWasmLoaded(true);
-        console.log("WebAssembly module loaded successfully");
-
+        
         // Fetch election parameters from backend
         const params = await setupElection();
-        console.log("Election parameters fetched successfully");
-
-        // Initialize crypto parameters with fetched values
-        await initCryptoParams(params.n, params.h);
-        console.log("Crypto parameters initialized successfully");
-
+        
+        // Initialize crypto parameters with fetched values - setupElection already does this
+        // so we don't need to call initCryptoParams again
+        
         // Generate secret key
         const result = await generateSecretKey(params.n);
         if (result === 0) {
           const key = await getSecretKey();
           setSecretKey(key);
-          console.log("Secret key generated successfully");
         } else {
           console.error("Failed to generate secret key");
         }
@@ -168,7 +171,8 @@ function App() {
 
         setElectionData(electionData);
         setLoading(false);
-
+        isInitialized = true;
+        console.log("Application setup completed successfully");
 
       } catch (err) {
         console.error("Setup failed:", err);

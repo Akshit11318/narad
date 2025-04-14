@@ -5,7 +5,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 // Define the API endpoint
-const API_URL = process.env.API_URL || "http://localhost:3000";
+const API_URL = "http://localhost:3000/api/collector";
 
 /**
  * Fetch N and H parameters from the backend
@@ -13,13 +13,15 @@ const API_URL = process.env.API_URL || "http://localhost:3000";
  */
 export async function fetchNAndH(): Promise<{ N: string; H: string }> {
   try {
+    console.log(`[*] Connecting to API at ${API_URL}/params`);
     const response = await axios.get(`${API_URL}/params`);
+    console.log(`[*] Successfully fetched N and H parameters`);
     return {
       N: response.data.N,
       H: response.data.H,
     };
   } catch (error) {
-    console.error("Error fetching N and H parameters:", error);
+    console.error(`[*] Error fetching N and H parameters:`, error);
     throw error;
   }
 }
@@ -30,10 +32,26 @@ export async function fetchNAndH(): Promise<{ N: string; H: string }> {
  */
 export async function fetchAuxiliaryValues(): Promise<string[]> {
   try {
-    const response = await axios.get(`${API_URL}/auxiliary-values`);
-    return response.data.auxiliaryValues;
+    console.log(`[*] Fetching auxiliary values from ${API_URL}/fetch-auxiliary`);
+    const response = await axios.get(`${API_URL}/fetch-auxiliary`, {
+      validateStatus: function (status) {
+        return status < 500; // Reject only if the status code is greater than or equal to 500
+      }
+    });
+
+    if (!response.data || !Array.isArray(response.data.auxiliaryValues)) {
+      throw new Error('Invalid response format: auxiliaryValues not found or not an array');
+    }
+
+    // Extract the auxi values from the response
+    const auxiliaryValues = response.data.auxiliaryValues.map(
+      (value: { voterId: string; auxi: string }) => value.auxi
+    );
+
+    console.log(`[*] Successfully fetched ${auxiliaryValues.length} auxiliary values`);
+    return auxiliaryValues;
   } catch (error) {
-    console.error("Error fetching auxiliary values:", error);
+    console.error(`[*] Error fetching auxiliary values:`, error);
     throw error;
   }
 }
@@ -45,12 +63,13 @@ export async function fetchAuxiliaryValues(): Promise<string[]> {
  */
 export async function submitAuxiliaryProduct(product: string): Promise<any> {
   try {
-    const response = await axios.post(`${API_URL}/auxiliary-product`, {
+    const response = await axios.post(`${API_URL}/aux`, {
       product,
     });
+    console.log(`[*] Successfully submitted auxiliary product`);
     return response.data;
   } catch (error) {
-    console.error("Error submitting auxiliary product:", error);
+    console.error(`[*] Error submitting auxiliary product:`, error);
     throw error;
   }
 }

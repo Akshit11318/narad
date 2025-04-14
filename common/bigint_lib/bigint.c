@@ -21,7 +21,12 @@ BigInt create_bigint(const uint8_t* data, size_t length) {
     result.data = (uint8_t*)malloc(length);
     
     if (result.data) {
-        memcpy(result.data, data, length);
+        if (data) {
+            memcpy(result.data, data, length);
+        } else {
+            // Initialize to zero if data is NULL
+            memset(result.data, 0, length);
+        }
     } else {
         // Handle allocation failure
         result.length = 0;
@@ -118,8 +123,12 @@ int modular_exponentiation(const BigInt* base, const BigInt* exponent,
 int modular_multiplication(const BigInt* a, const BigInt* b, 
                            const BigInt* modulus, BigInt* result) {
     if (!a || !b || !modulus || !result) {
+        fprintf(stderr, "[ERROR] Invalid parameters in modular_multiplication\n");
         return -1; // Invalid parameters
     }
+    
+    fprintf(stderr, "[DEBUG] Starting modular_multiplication: a(%zu bytes), b(%zu bytes), modulus(%zu bytes)\n", 
+            a->length, b->length, modulus->length);
     
     // Allocate memory for the product (needs twice the size)
     // Ensure we allocate enough space - use max of (a+b length) or (2*modulus length)
@@ -128,13 +137,16 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
         product_len = modulus->length * 2;
     }
     
+    fprintf(stderr, "[DEBUG] Allocating %zu bytes for product\n", product_len);
     uint8_t* product = (uint8_t*)calloc(product_len, 1);
     
     if (!product) {
+        fprintf(stderr, "[ERROR] Memory allocation failed in modular_multiplication\n");
         return -1; // Memory allocation failed
     }
     
     // Multiply the two numbers (simplified - not efficient for large numbers)
+    fprintf(stderr, "[DEBUG] Starting multiplication loop\n");
     for (size_t i = 0; i < a->length; i++) {
         uint16_t carry = 0;
         for (size_t j = 0; j < b->length || carry; j++) {
@@ -157,6 +169,7 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
             }
         }
     }
+    fprintf(stderr, "[DEBUG] Multiplication completed\n");
     
     // For now, we'll just create a BigInt from the product
     BigInt product_bigint;
@@ -168,22 +181,33 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
         product_bigint.length--;
     }
     
-    // Perform modular reduction (simplified)
-    // In a real implementation, this would be more efficient
-    while (compare_bigint(&product_bigint, modulus) >= 0) {
-        // Subtract modulus from product
-        // This is a very inefficient way to do modular reduction
-        // Real implementation would use more sophisticated algorithms
-        BigInt temp;
-        // Subtraction implementation would go here
-        // For now, we'll just set the result to a placeholder
-        temp.data = (uint8_t*)malloc(1);
-        temp.data[0] = 1;
-        temp.length = 1;
+    fprintf(stderr, "[DEBUG] Starting modular reduction, product length: %zu bytes\n", product_bigint.length);
+    
+    // Use bigint_mod function for efficient modular reduction
+    int reduction_count = 0;
+    
+    // Check if product is already smaller than modulus
+    if (compare_bigint(&product_bigint, modulus) < 0) {
+        fprintf(stderr, "[DEBUG] Product already smaller than modulus, skipping reduction\n");
+    } else {
+        // Use the bigint_mod function which implements a more efficient algorithm
+        BigInt mod_result;
+        int mod_status = bigint_mod(&product_bigint, modulus, &mod_result);
         
+        if (mod_status != 0) {
+            fprintf(stderr, "[ERROR] Failed to perform modular reduction: %d\n", mod_status);
+            free(product_bigint.data);
+            return -2; // Failed modular reduction
+        }
+        
+        // Free the original product and replace with the modular result
         free(product_bigint.data);
-        product_bigint = temp;
+        product_bigint = mod_result;
+        
+        fprintf(stderr, "[DEBUG] Modular reduction completed successfully\n");
     }
+    
+    fprintf(stderr, "[DEBUG] Modular reduction completed after %d iterations\n", reduction_count);
     
     // Copy the result
     *result = create_bigint(product_bigint.data, product_bigint.length);
@@ -191,6 +215,7 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
     // Clean up
     free(product_bigint.data);
     
+    fprintf(stderr, "[DEBUG] modular_multiplication completed successfully\n");
     return 0;
 }
 
@@ -251,11 +276,29 @@ int modular_addition(const BigInt* a, const BigInt* b,
     // Perform modular reduction
     while (compare_bigint(&temp_sum, modulus) >= 0) {
         // Subtract modulus from sum
-        BigInt temp;
-        // Implement subtraction here
-        // For simplicity, we'll just set a placeholder
-        uint8_t placeholder = 1;
-        temp = create_bigint(&placeholder, 1);
+        BigInt temp = create_bigint(NULL, temp_sum.length);
+        if (!temp.data) {
+            free_bigint(&temp_sum);
+            return -1; // Memory allocation failed
+        }
+        
+        // Perform subtraction: temp = temp_sum - modulus
+        int borrow = 0;
+        for (size_t i = 0; i < temp_sum.length; i++) {
+            int diff = temp_sum.data[i] - (i < modulus->length ? modulus->data[i] : 0) - borrow;
+            if (diff < 0) {
+                diff += 256; // Add base (256 for bytes)
+                borrow = 1;
+            } else {
+                borrow = 0;
+            }
+            temp.data[i] = (uint8_t)diff;
+        }
+        
+        // Remove leading zeros
+        while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
+            temp.length--;
+        }
         
         free_bigint(&temp_sum);
         temp_sum = temp;
@@ -354,21 +397,46 @@ int gcd(const BigInt* a, const BigInt* b, BigInt* result) {
     
     // Euclidean algorithm
     while (b_copy.length > 1 || (b_copy.length == 1 && b_copy.data[0] != 0)) {
-        // temp = a % b
-        BigInt temp;
-        // Modulo operation implementation would go here
-        // For now, we'll just set temp to a placeholder
-        temp.data = (uint8_t*)malloc(1);
-        temp.data[0] = 1;
-        temp.length = 1;
+        // Perform a % b using repeated subtraction (inefficient but functional)
+        while (compare_bigint(&a_copy, &b_copy) >= 0) {
+            // Subtract b from a
+            BigInt temp = create_bigint(NULL, a_copy.length);
+            if (!temp.data) {
+                free_bigint(&a_copy);
+                free_bigint(&b_copy);
+                return -1; // Memory allocation failed
+            }
+            
+            // Perform subtraction: temp = a_copy - b_copy
+            int borrow = 0;
+            for (size_t i = 0; i < a_copy.length; i++) {
+                int diff = a_copy.data[i] - (i < b_copy.length ? b_copy.data[i] : 0) - borrow;
+                if (diff < 0) {
+                    diff += 256; // Add base (256 for bytes)
+                    borrow = 1;
+                } else {
+                    borrow = 0;
+                }
+                temp.data[i] = (uint8_t)diff;
+            }
+            
+            // Remove leading zeros
+            while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
+                temp.length--;
+            }
+            
+            free_bigint(&a_copy);
+            a_copy = temp;
+        }
         
-        // a = b
-        free_bigint(&a_copy);
-        a_copy = create_bigint(b_copy.data, b_copy.length);
-        
-        // b = temp
-        free_bigint(&b_copy);
+        // Swap a and b
+        BigInt temp = a_copy;
+        a_copy = b_copy;
         b_copy = temp;
+        
+        // Reset temp to avoid double free
+        temp.data = NULL;
+        temp.length = 0;
     }
     
     // Copy the result (a is the GCD)
@@ -601,6 +669,7 @@ int hex_string_to_bigint(const char* hex_str, BigInt* bigint) {
  */
 int bigint_mod(const BigInt* a, const BigInt* modulus, BigInt* result) {
     if (!a || !modulus || !result) {
+        fprintf(stderr, "[ERROR] Invalid parameters in bigint_mod\n");
         return -1; // Invalid parameters
     }
     
@@ -608,6 +677,7 @@ int bigint_mod(const BigInt* a, const BigInt* modulus, BigInt* result) {
     uint8_t zero_val = 0;
     BigInt zero = create_bigint(&zero_val, 1);
     if (compare_bigint(modulus, &zero) == 0) {
+        fprintf(stderr, "[ERROR] Division by zero in bigint_mod\n");
         free_bigint(&zero);
         return -1; // Division by zero
     }
@@ -615,120 +685,201 @@ int bigint_mod(const BigInt* a, const BigInt* modulus, BigInt* result) {
     
     // If a is already less than modulus, just copy a to result
     if (compare_bigint(a, modulus) < 0) {
+        fprintf(stderr, "[DEBUG] Value already smaller than modulus, copying directly\n");
         *result = create_bigint(a->data, a->length);
         return 0;
     }
     
+    fprintf(stderr, "[DEBUG] Starting improved modular reduction algorithm\n");
+    
     // Create a copy of a for calculations
     BigInt a_copy = create_bigint(a->data, a->length);
     
-    // Perform modular reduction by repeated subtraction
-    // This is a simple but inefficient algorithm
-    // In a production environment, a more efficient algorithm like Barrett reduction
-    // or Montgomery reduction would be used
-    while (compare_bigint(&a_copy, modulus) >= 0) {
-        // Find the largest multiple of modulus that is less than or equal to a_copy
-        size_t shift = 0;
-        BigInt shifted_modulus = create_bigint(modulus->data, modulus->length);
-        
-        // Shift modulus left until it's just smaller than a_copy
-        while (compare_bigint(&shifted_modulus, &a_copy) <= 0) {
-            BigInt temp = shifted_modulus;
-            // Double the value (shift left by 1 bit)
-            shifted_modulus.data = (uint8_t*)calloc(shifted_modulus.length + 1, 1);
-            if (!shifted_modulus.data) {
+    // Improved modular reduction algorithm with iteration limit
+    int iteration_count = 0;
+    const int MAX_ITERATIONS = 10000; // Set a reasonable limit
+    
+    // First, try direct subtraction for small values
+    if (a->length <= modulus->length + 1) {
+        fprintf(stderr, "[DEBUG] Using direct subtraction for small values\n");
+        while (compare_bigint(&a_copy, modulus) >= 0) {
+            // Simple subtraction for small values
+            BigInt temp;
+            temp.length = a_copy.length;
+            temp.data = (uint8_t*)calloc(temp.length, 1);
+            if (!temp.data) {
+                fprintf(stderr, "[ERROR] Memory allocation failed in bigint_mod\n");
                 free_bigint(&a_copy);
-                free_bigint(&temp);
                 return -2; // Memory allocation failure
             }
             
-            uint16_t carry = 0;
-            for (size_t i = 0; i < temp.length; i++) {
-                uint16_t val = ((uint16_t)temp.data[i] << 1) + carry;
-                shifted_modulus.data[i] = val & 0xFF;
-                carry = val >> 8;
-            }
-            if (carry) {
-                shifted_modulus.data[temp.length] = carry;
-                shifted_modulus.length = temp.length + 1;
-            } else {
-                shifted_modulus.length = temp.length;
-            }
-            
-            free_bigint(&temp);
-            shift++;
-            
-            // If we've shifted too far, back up one step
-            if (compare_bigint(&shifted_modulus, &a_copy) > 0) {
-                free_bigint(&shifted_modulus);
-                
-                // Recreate the previous shifted value
-                shifted_modulus = create_bigint(modulus->data, modulus->length);
-                for (size_t i = 0; i < shift - 1; i++) {
-                    BigInt temp = shifted_modulus;
-                    // Double the value
-                    shifted_modulus.data = (uint8_t*)calloc(shifted_modulus.length + 1, 1);
-                    if (!shifted_modulus.data) {
-                        free_bigint(&a_copy);
-                        free_bigint(&temp);
-                        return -2; // Memory allocation failure
-                    }
-                    
-                    uint16_t carry = 0;
-                    for (size_t j = 0; j < temp.length; j++) {
-                        uint16_t val = ((uint16_t)temp.data[j] << 1) + carry;
-                        shifted_modulus.data[j] = val & 0xFF;
-                        carry = val >> 8;
-                    }
-                    if (carry) {
-                        shifted_modulus.data[temp.length] = carry;
-                        shifted_modulus.length = temp.length + 1;
-                    } else {
-                        shifted_modulus.length = temp.length;
-                    }
-                    
-                    free_bigint(&temp);
+            int borrow = 0;
+            for (size_t i = 0; i < a_copy.length; i++) {
+                int diff = (int)a_copy.data[i] - borrow;
+                if (i < modulus->length) {
+                    diff -= modulus->data[i];
                 }
-                break;
+                
+                if (diff < 0) {
+                    diff += 256;
+                    borrow = 1;
+                } else {
+                    borrow = 0;
+                }
+                
+                temp.data[i] = (uint8_t)diff;
+            }
+            
+            // Remove leading zeros
+            while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
+                temp.length--;
+            }
+            
+            free_bigint(&a_copy);
+            a_copy = temp;
+            
+            iteration_count++;
+            if (iteration_count > MAX_ITERATIONS) {
+                fprintf(stderr, "[ERROR] Exceeded maximum iterations (%d) in bigint_mod\n", MAX_ITERATIONS);
+                free_bigint(&a_copy);
+                return -2; // Exceeded iteration limit
             }
         }
-        
-        // Subtract shifted_modulus from a_copy
-        BigInt temp;
-        temp.length = a_copy.length;
-        temp.data = (uint8_t*)calloc(temp.length, 1);
-        if (!temp.data) {
+    } else {
+        fprintf(stderr, "[DEBUG] Using binary long division for large values\n");
+        // For larger values, use binary long division approach
+        while (compare_bigint(&a_copy, modulus) >= 0) {
+            // Find the largest multiple of modulus that is less than or equal to a_copy
+            // Calculate approximate bit difference to optimize the process
+            int bit_diff = (a_copy.length - modulus->length) * 8;
+            if (bit_diff < 0) bit_diff = 0;
+            
+            // Start with a copy of the modulus
+            BigInt shifted_modulus = create_bigint(modulus->data, modulus->length);
+            
+            // Pre-shift to get closer to the target value faster
+            if (bit_diff > 8) {
+                // Shift by bytes first (much faster)
+                size_t byte_shift = bit_diff / 8;
+                BigInt byte_shifted = create_bigint(NULL, modulus->length + byte_shift);
+                if (!byte_shifted.data) {
+                    fprintf(stderr, "[ERROR] Memory allocation failed during byte shifting\n");
+                    free_bigint(&a_copy);
+                    free_bigint(&shifted_modulus);
+                    return -2;
+                }
+                
+                // Copy modulus data with byte shift
+                memset(byte_shifted.data, 0, byte_shift);
+                memcpy(byte_shifted.data + byte_shift, modulus->data, modulus->length);
+                
+                free_bigint(&shifted_modulus);
+                shifted_modulus = byte_shifted;
+            }
+            
+            // Now do bit-by-bit shifting until we find the right value
+            size_t shift = 0;
+            BigInt prev_modulus;
+            
+            while (compare_bigint(&shifted_modulus, &a_copy) <= 0) {
+                // Save the previous value before shifting
+                prev_modulus = shifted_modulus;
+                
+                // Double the value (shift left by 1 bit)
+                shifted_modulus.data = (uint8_t*)calloc(shifted_modulus.length + 1, 1);
+                if (!shifted_modulus.data) {
+                    fprintf(stderr, "[ERROR] Memory allocation failed during bit shifting\n");
+                    free_bigint(&a_copy);
+                    free_bigint(&prev_modulus);
+                    return -2; // Memory allocation failure
+                }
+                
+                uint16_t carry = 0;
+                for (size_t i = 0; i < prev_modulus.length; i++) {
+                    uint16_t val = ((uint16_t)prev_modulus.data[i] << 1) + carry;
+                    shifted_modulus.data[i] = val & 0xFF;
+                    carry = val >> 8;
+                }
+                
+                if (carry) {
+                    shifted_modulus.data[prev_modulus.length] = carry;
+                    shifted_modulus.length = prev_modulus.length + 1;
+                } else {
+                    shifted_modulus.length = prev_modulus.length;
+                }
+                
+                // If we've gone too far, use the previous value
+                if (compare_bigint(&shifted_modulus, &a_copy) > 0) {
+                    free_bigint(&shifted_modulus);
+                    shifted_modulus = prev_modulus;
+                    break;
+                }
+                
+                // Otherwise, free the previous value and continue
+                free_bigint(&prev_modulus);
+                shift++;
+                
+                // Prevent infinite loops
+                if (shift > 1000) {
+                    fprintf(stderr, "[ERROR] Too many shifts in bigint_mod\n");
+                    free_bigint(&a_copy);
+                    free_bigint(&shifted_modulus);
+                    return -2; // Too many shifts
+                }
+            }
+            
+            // Subtract shifted_modulus from a_copy
+            BigInt temp;
+            temp.length = a_copy.length;
+            temp.data = (uint8_t*)calloc(temp.length, 1);
+            if (!temp.data) {
+                fprintf(stderr, "[ERROR] Memory allocation failed during subtraction\n");
+                free_bigint(&a_copy);
+                free_bigint(&shifted_modulus);
+                return -2; // Memory allocation failure
+            }
+            
+            int borrow = 0;
+            for (size_t i = 0; i < a_copy.length; i++) {
+                int diff = (int)a_copy.data[i] - borrow;
+                if (i < shifted_modulus.length) {
+                    diff -= shifted_modulus.data[i];
+                }
+                
+                if (diff < 0) {
+                    diff += 256;
+                    borrow = 1;
+                } else {
+                    borrow = 0;
+                }
+                
+                temp.data[i] = (uint8_t)diff;
+            }
+            
+            // Remove leading zeros
+            while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
+                temp.length--;
+            }
+            
             free_bigint(&a_copy);
             free_bigint(&shifted_modulus);
-            return -2; // Memory allocation failure
-        }
-        
-        int borrow = 0;
-        for (size_t i = 0; i < a_copy.length; i++) {
-            int diff = (int)a_copy.data[i] - borrow;
-            if (i < shifted_modulus.length) {
-                diff -= shifted_modulus.data[i];
+            a_copy = temp;
+            
+            iteration_count++;
+            if (iteration_count % 100 == 0) {
+                fprintf(stderr, "[DEBUG] Modular reduction iteration %d\n", iteration_count);
             }
             
-            if (diff < 0) {
-                diff += 256;
-                borrow = 1;
-            } else {
-                borrow = 0;
+            if (iteration_count > MAX_ITERATIONS) {
+                fprintf(stderr, "[ERROR] Exceeded maximum iterations (%d) in bigint_mod\n", MAX_ITERATIONS);
+                free_bigint(&a_copy);
+                return -2; // Exceeded iteration limit
             }
-            
-            temp.data[i] = (uint8_t)diff;
         }
-        
-        // Remove leading zeros
-        while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
-            temp.length--;
-        }
-        
-        free_bigint(&a_copy);
-        free_bigint(&shifted_modulus);
-        a_copy = temp;
     }
+    
+    fprintf(stderr, "[DEBUG] Modular reduction completed after %d iterations\n", iteration_count);
+    
     
     // Copy the result
     *result = create_bigint(a_copy.data, a_copy.length);

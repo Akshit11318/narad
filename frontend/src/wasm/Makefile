@@ -15,7 +15,7 @@ EMCC = emcc
 # Compiler flags
 CFLAGS = -O3 -s WASM=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] \
          -s EXPORTED_FUNCTIONS="['_malloc', '_free', \
-          '_free_bigint_ptr', '_pack_votes', '_pack_and_encrypt_votes', '_encrypt_and_store', \
+          '_pack_votes', '_pack_and_encrypt_votes', '_encrypt_and_store', \
           '_get_encrypted_vote', '_get_encrypted_vote_size', '_clear_encrypted_vote', \
           '_generate_secret_key', '_compute_aggregator_public_key', '_compute_auxiliary_key', \
           '_encrypt_vote_paillier', '_get_secret_key', '_get_aggregator_public_key', \

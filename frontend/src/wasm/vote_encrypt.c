@@ -3,6 +3,7 @@
 #include "bigint_ops.h"
 #include "crypto_voting.h"
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 /**
@@ -99,17 +100,27 @@ int pack_and_encrypt_votes(const uint32_t* votes, size_t vote_count,
                            const uint8_t* n_data, size_t n_length,
                            const uint8_t* h_data, size_t h_length,
                            uint8_t* result, size_t result_length) {
+    // Debug: Print the vote array before processing
+    printf("C: Processing vote array with %zu elements:\n", vote_count);
+    for (size_t i = 0; i < vote_count; i++) {
+        printf("C: votes[%zu] = %u\n", i, votes[i]);
+    }
+    
     // Step 1: Pack the votes into a single BigInt
     BigInt packed_votes = pack_votes(votes, vote_count);
     
+    // Debug: Print packed vote information
+    printf("C: Packed votes into BigInt of length %zu bytes\n", packed_votes.length);
+    
     // Step 2: If packing failed, return error
     if (packed_votes.length == 1 && packed_votes.data[0] == 0) {
+        printf("C: ERROR - Vote packing failed\n");
         free_bigint(&packed_votes);
         return -1;
     }
     
     // Step 3: Encrypt the packed votes
-    
+    printf("C: Starting encryption of packed votes\n");
     
     int encrypt_result = encrypt_vote_paillier(
         packed_votes.data, packed_votes.length,
@@ -117,6 +128,10 @@ int pack_and_encrypt_votes(const uint32_t* votes, size_t vote_count,
         n_data, n_length,
         result, result_length
     );
+    
+    // Debug: Print encryption result
+    printf("C: Encryption %s with result code %d\n", 
+           encrypt_result == 0 ? "succeeded" : "failed", encrypt_result);
     
     // Clean up
     free_bigint(&packed_votes);

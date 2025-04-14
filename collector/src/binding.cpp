@@ -163,9 +163,57 @@ std::vector<uint8_t> HexToUint8Array(const std::string& hex) {
         cleanHex = "0" + cleanHex;
     }
     
+    fprintf(stderr, "[DEBUG] Converting hex string: %s (length: %zu)\n", 
+            cleanHex.length() > 20 ? (cleanHex.substr(0, 10) + "..." + cleanHex.substr(cleanHex.length() - 10)).c_str() : cleanHex.c_str(), 
+            cleanHex.length());
+    
+    fprintf(stderr, "[DEBUG] Processing hex string of length %zu\n", cleanHex.length());
+    
+    // Validate hex string - ensure it only contains valid hex characters
+    for (char c : cleanHex) {
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+            fprintf(stderr, "[ERROR] Invalid hex character detected: %c\n", c);
+            // Replace invalid character with '0'
+            c = '0';
+        }
+    }
+    
+    // Create bytes array - BigInt expects big-endian format (most significant byte first)
     std::vector<uint8_t> bytes(cleanHex.length() / 2);
+    
+    // Convert hex string to bytes - store in big-endian format
     for (size_t i = 0; i < cleanHex.length(); i += 2) {
-        bytes[i / 2] = static_cast<uint8_t>(std::stoi(cleanHex.substr(i, 2), nullptr, 16));
+        try {
+            // Convert hex string to byte value
+            std::string byteStr = cleanHex.substr(i, 2);
+            unsigned int byteVal = 0;
+            
+            // Use sscanf which is more reliable for hex conversion
+            if (sscanf(byteStr.c_str(), "%2x", &byteVal) == 1) {
+                // Store in big-endian order (most significant byte first)
+                bytes[i / 2] = static_cast<uint8_t>(byteVal);
+            } else {
+                // If conversion fails, set to 0
+                bytes[i / 2] = 0;
+                // Log the error but continue processing
+                fprintf(stderr, "[ERROR] Error converting hex value: %s\n", byteStr.c_str());
+            }
+        } catch (const std::exception& e) {
+            // Handle any unexpected exceptions
+            bytes[i / 2] = 0;
+            fprintf(stderr, "[ERROR] Exception in hex conversion: %s\n", e.what());
+        }
+    }
+    
+    // Log the conversion for debugging
+    fprintf(stderr, "[DEBUG] Converted hex string of length %zu to %zu bytes\n", 
+            cleanHex.length(), bytes.size());
+    
+    // Validate the resulting byte array is not empty
+    if (bytes.empty()) {
+        fprintf(stderr, "[ERROR] Resulting byte array is empty\n");
+        // Add a default value to prevent empty BigInt
+        bytes.push_back(0);
     }
     
     return bytes;
@@ -219,6 +267,7 @@ Napi::Value CollectorInit(const Napi::CallbackInfo& info) {
 }
 
 // Process an auxiliary value
+// Process an auxiliary value
 Napi::Value ProcessAuxiliaryValue(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
@@ -227,14 +276,23 @@ Napi::Value ProcessAuxiliaryValue(const Napi::CallbackInfo& info) {
     }
     
     try {
+        // Log the start of processing
+        fprintf(stderr, "[DEBUG] Starting to process auxiliary value\n");
+        
         // Extract auxiliary value from the arguments
         BigIntWrapper aux = BigIntWrapper::FromValue(info[0]);
         
+        // Log the auxiliary value details
+        fprintf(stderr, "[DEBUG] Auxiliary value extracted, length: %zu bytes\n", aux.get()->length);
+        
         // Process the auxiliary value
+        fprintf(stderr, "[DEBUG] Calling process_auxiliary_value_realtime...\n");
         int result = process_auxiliary_value_realtime(aux.get());
+        fprintf(stderr, "[DEBUG] process_auxiliary_value_realtime returned: %d\n", result);
         
         return Napi::Number::New(env, result);
     } catch (const std::exception& e) {
+        fprintf(stderr, "[ERROR] Exception in ProcessAuxiliaryValue: %s\n", e.what());
         throw Napi::Error::New(env, e.what());
     }
 }

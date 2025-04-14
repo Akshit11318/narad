@@ -4,6 +4,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+// this is a header fie which makes the functions available for 
+// use in C++ code and compiled as C code
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Structure to hold large integers for cryptographic operations
  */
@@ -127,5 +133,9 @@ int bigint_to_hex_string(const BigInt* bigint, char* hex_str, size_t str_size);
  * @return 0 on success, non-zero on failure
  */
 int hex_string_to_bigint(const char* hex_str, BigInt* bigint);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* BIGINT_H */

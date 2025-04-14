@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include "bigint_ops.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /**
  * @brief Structure to hold election parameters
@@ -48,5 +52,8 @@ int reset_auxiliary_product(void);
  */
 int collector_cleanup(void);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* COLLECTOR_H */
