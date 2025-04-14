@@ -51,27 +51,25 @@ router.post('/aux', async (req, res) => {
     }
 
     // Store the auxiliary product or update if exists
-    const existingResult = await prisma.systemParams.findFirst({
+    const existingResult = await prisma.aggregatedResult.findFirst({
       orderBy: { createdAt: 'desc' }
     });
 
     if (existingResult) {
-      await prisma.systemParams.update({
+      await prisma.aggregatedResult.update({
         where: { id: existingResult.id },
-        data: { 
-          N: existingResult.N,
-          H: existingResult.H,
-          skA: existingResult.skA,
-          aux
+        data: {
+          aux,
+          result: existingResult.result,
+          decodedVotes: existingResult.decodedVotes
         }
       });
     } else {
-      await prisma.systemParams.create({
+      await prisma.aggregatedResult.create({
         data: {
           aux,
-          N: '',
-          H: '',
-          skA: ''
+          result: '',
+          decodedVotes: '[]'
         }
       });
     }

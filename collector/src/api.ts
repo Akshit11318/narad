@@ -64,7 +64,7 @@ export async function fetchAuxiliaryValues(): Promise<string[]> {
 export async function submitAuxiliaryProduct(product: string): Promise<any> {
   try {
     const response = await axios.post(`${API_URL}/aux`, {
-      product,
+      aux:product,
     });
     console.log(`[*] Successfully submitted auxiliary product`);
     return response.data;
