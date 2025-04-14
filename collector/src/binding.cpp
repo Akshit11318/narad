@@ -135,7 +135,41 @@ public:
         
         // Create ElectionParams structure
         params_.N = *N.get();
-        params_.N_squared = create_bigint(nullptr, 0); // Will be calculated in collector_init
+        // Calculate N_squared = N * N
+        // Allocate space for N^2 and perform multiplication without modulo
+        size_t n_length = N.get()->length;
+        uint8_t* product = (uint8_t*)calloc(n_length * 2, 1);
+        
+        if (!product) {
+            fprintf(stderr, "[ERROR] Memory allocation failed for N_squared\n");
+            return false;
+        }
+        
+        // Perform simple multiplication N * N
+        for (size_t i = 0; i < n_length; i++) {
+            uint16_t carry = 0;
+            for (size_t j = 0; j < n_length || carry; j++) {
+                if (i + j < n_length * 2) {
+                    uint32_t current = product[i + j];
+                    if (j < n_length) {
+                        current += (uint32_t)N.get()->data[i] * N.get()->data[j];
+                    }
+                    current += carry;
+                    product[i + j] = current & 0xFF;
+                    carry = current >> 8;
+                }
+            }
+        }
+        
+        // Create BigInt from product
+        params_.N_squared = create_bigint(product, n_length * 2);
+        free(product);
+        
+        // Verify the calculation succeeded
+        if (!params_.N_squared.data) {
+            fprintf(stderr, "[ERROR] Failed to create N_squared BigInt\n");
+            return false;
+        }
         params_.H = *H.get();
         
         int result = collector_init(&params_);

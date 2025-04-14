@@ -14,6 +14,8 @@ The collector module is responsible for:
 
 - **Auxiliary Value Processing**: Computes the final auxiliary value from individual user contributions
 - **Cryptographic Operations**: Implements modular exponentiation and multiplication for secure aggregation
+  - All modular operations require a valid modulus (n²) value to be provided
+  - The system verifies election parameters to ensure proper modulus values are available
 - **HTTP Client**: Handles communication with the backend server for parameter fetching and result submission using libcurl
 
 ## Building and Running
