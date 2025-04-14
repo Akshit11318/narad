@@ -4,7 +4,7 @@
   "description": "Node.js interface for the voting system aggregator",
   "main": "dist/index.js",
   "scripts": {
-    "build": "npm run build:addon && tsc",
+    "build": "tsc",
     "build:addon": "node-gyp rebuild",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",

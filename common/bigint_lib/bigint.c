@@ -514,20 +514,38 @@ int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
     fprintf(stderr, "[DEBUG] Initialized variables for extended Euclidean algorithm\n");
 
     // Extended Euclidean algorithm
-    while (r.length > 1 || (r.length == 1 && r.data[0] != 0)) {
+    int iteration_count = 0;
+    const int MAX_ITERATIONS = 1000; // Prevent infinite loops
+    size_t prev_length = r.length;
+    
+    while ((r.length > 1 || (r.length == 1 && r.data[0] != 0)) && iteration_count < MAX_ITERATIONS) {
+        iteration_count++;
         // Calculate quotient and remainder
         BigInt quotient = {NULL, 0};
         BigInt temp_r = {NULL, 0};
         
         // Perform division to get quotient and remainder
         if (bigint_divide(&old_r, &r, &quotient, &temp_r) != 0) {
-            fprintf(stderr, "[ERROR] Division failed in modular_inverse\n");
+            fprintf(stderr, "[ERROR] Division failed in modular_inverse after %d iterations\n", iteration_count);
             free_bigint(&old_r);
             free_bigint(&r);
             free_bigint(&old_s);
             free_bigint(&s);
             return -2;
         }
+        
+        // Check if remainder is actually decreasing
+        if (temp_r.length >= prev_length) {
+            fprintf(stderr, "[ERROR] Remainder not decreasing in modular_inverse after %d iterations\n", iteration_count);
+            free_bigint(&old_r);
+            free_bigint(&r);
+            free_bigint(&old_s);
+            free_bigint(&s);
+            free_bigint(&quotient);
+            free_bigint(&temp_r);
+            return -2;
+        }
+        prev_length = temp_r.length;
 
         // Update r values: old_r = r, r = temp_r
         free_bigint(&old_r);
