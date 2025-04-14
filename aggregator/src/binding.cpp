@@ -88,95 +88,9 @@ private:
     BigInt bigint_;
 };
 
-// Wrapper class for AggregatorParams to manage memory
-class AggregatorParamsWrapper {
-public:
-    AggregatorParamsWrapper() : initialized_(false) {
-        // Initialize with empty values
-        memset(&params_, 0, sizeof(AggregatorParams));
-    }
-    
-    ~AggregatorParamsWrapper() {
-        if (initialized_) {
-            aggregator_cleanup(&params_);
-            initialized_ = false;
-        }
-    }
-    
-    // Prevent copying
-    AggregatorParamsWrapper(const AggregatorParamsWrapper&) = delete;
-    AggregatorParamsWrapper& operator=(const AggregatorParamsWrapper&) = delete;
-    
-    // Allow moving
-    AggregatorParamsWrapper(AggregatorParamsWrapper&& other) noexcept 
-        : params_(other.params_), initialized_(other.initialized_) {
-        other.initialized_ = false;
-        memset(&other.params_, 0, sizeof(AggregatorParams));
-    }
-    
-    AggregatorParamsWrapper& operator=(AggregatorParamsWrapper&& other) noexcept {
-        if (this != &other) {
-            if (initialized_) {
-                aggregator_cleanup(&params_);
-            }
-            params_ = other.params_;
-            initialized_ = other.initialized_;
-            other.initialized_ = false;
-            memset(&other.params_, 0, sizeof(AggregatorParams));
-        }
-        return *this;
-    }
-    
-    bool Initialize(const BigIntWrapper& N, const BigIntWrapper& H, const BigIntWrapper& skA) {
-        if (initialized_) {
-            aggregator_cleanup(&params_);
-            initialized_ = false;
-        }
-        
-        int result = aggregator_init(&params_, N.get(), H.get(), skA.get());
-        initialized_ = (result == 0);
-        return initialized_;
-    }
-    
-    AggregatorParams* get() { return &params_; }
-    const AggregatorParams* get() const { return &params_; }
-    
-    // Convert to Napi::Value
-    Napi::Value ToValue(Napi::Env env) const {
-        Napi::Object obj = Napi::Object::New(env);
-        
-        // Convert each BigInt field
-        if (initialized_) {
-            // Create a wrapper for each BigInt field and convert to JS object
-            BigIntWrapper N(params_.N.data, params_.N.length);
-            BigIntWrapper N_squared(params_.N_squared.data, params_.N_squared.length);
-            BigIntWrapper H(params_.H.data, params_.H.length);
-            BigIntWrapper sk_A(params_.sk_A.data, params_.sk_A.length);
-            BigIntWrapper sk_A_mod_N(params_.sk_A_mod_N.data, params_.sk_A_mod_N.length);
-            BigIntWrapper sk_A_inv(params_.sk_A_inv.data, params_.sk_A_inv.length);
-            BigIntWrapper running_product(params_.running_product.data, params_.running_product.length);
-            
-            obj.Set("N", N.ToValue(env));
-            obj.Set("N_squared", N_squared.ToValue(env));
-            obj.Set("H", H.ToValue(env));
-            obj.Set("sk_A", sk_A.ToValue(env));
-            obj.Set("sk_A_mod_N", sk_A_mod_N.ToValue(env));
-            obj.Set("sk_A_inv", sk_A_inv.ToValue(env));
-            obj.Set("running_product", running_product.ToValue(env));
-            
-            // Mark as initialized
-            obj.Set("initialized", Napi::Boolean::New(env, true));
-        } else {
-            obj.Set("initialized", Napi::Boolean::New(env, false));
-        }
-        
-        return obj;
-    }
-    
-private:
-    AggregatorParams params_;
-    bool initialized_;
-};
+// Global instance of AggregatorParams
+static AggregatorParams g_params;
+static bool g_initialized = false;
 
 // Helper function to convert hex string to Uint8Array
 std::vector<uint8_t> HexToUint8Array(const std::string& hex) {
@@ -190,9 +104,46 @@ std::vector<uint8_t> HexToUint8Array(const std::string& hex) {
         cleanHex = "0" + cleanHex;
     }
     
+    fprintf(stderr, "[DEBUG] Converting hex string: %s (length: %zu)\n", 
+            cleanHex.length() > 20 ? (cleanHex.substr(0, 10) + "..." + cleanHex.substr(cleanHex.length() - 10)).c_str() : cleanHex.c_str(), 
+            cleanHex.length());
+    
+    // Validate hex string - ensure it only contains valid hex characters
+    for (char c : cleanHex) {
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+            fprintf(stderr, "[ERROR] Invalid hex character detected: %c\n", c);
+            // Replace invalid character with '0'
+            c = '0';
+        }
+    }
+    
     std::vector<uint8_t> bytes(cleanHex.length() / 2);
+    
+    // Convert hex string to bytes
     for (size_t i = 0; i < cleanHex.length(); i += 2) {
-        bytes[i / 2] = static_cast<uint8_t>(std::stoi(cleanHex.substr(i, 2), nullptr, 16));
+        try {
+            // Convert hex string to byte value
+            std::string byteStr = cleanHex.substr(i, 2);
+            unsigned int byteVal = 0;
+            
+            // Use sscanf which is more reliable for hex conversion
+            if (sscanf(byteStr.c_str(), "%2x", &byteVal) == 1) {
+                bytes[i / 2] = static_cast<uint8_t>(byteVal);
+            } else {
+                // If conversion fails, set to 0
+                bytes[i / 2] = 0;
+                fprintf(stderr, "[ERROR] Error converting hex value: %s\n", byteStr.c_str());
+            }
+        } catch (const std::exception& e) {
+            bytes[i / 2] = 0;
+            fprintf(stderr, "[ERROR] Exception in hex conversion: %s\n", e.what());
+        }
+    }
+    
+    // Validate the resulting byte array is not empty
+    if (bytes.empty()) {
+        fprintf(stderr, "[ERROR] Resulting byte array is empty\n");
+        bytes.push_back(0);
     }
     
     return bytes;
@@ -214,344 +165,335 @@ std::string BigIntToHexString(const BigInt* bigInt) {
     return hexString;
 }
 
-// Node-API wrapper class
-class AggregatorAddon : public Napi::ObjectWrap<AggregatorAddon> {
-public:
-    static Napi::Object Init(Napi::Env env, Napi::Object exports) {
-        Napi::HandleScope scope(env);
-        
-        Napi::Function func = DefineClass(env, "AggregatorAddon", {
-            InstanceMethod<&AggregatorAddon::AggregatorInit>("aggregatorInit"),
-            InstanceMethod<&AggregatorAddon::AddCiphertextToProduct>("addCiphertextToProduct"),
-            InstanceMethod<&AggregatorAddon::ResetRunningProduct>("resetRunningProduct"),
-            InstanceMethod<&AggregatorAddon::GetRunningProduct>("getRunningProduct"),
-            InstanceMethod<&AggregatorAddon::RaiseToSkA>("raiseToSkA"),
-            InstanceMethod<&AggregatorAddon::DivideOutMask>("divideOutMask"),
-            InstanceMethod<&AggregatorAddon::RecoverSum>("recoverSum"),
-            InstanceMethod<&AggregatorAddon::AggregateVotesFromRunningProduct>("aggregateVotesFromRunningProduct"),
-            InstanceMethod<&AggregatorAddon::UnpackVotes>("unpackVotes"),
-            InstanceMethod<&AggregatorAddon::AggregatorCleanup>("aggregatorCleanup"),
-            InstanceMethod<&AggregatorAddon::CreateBigIntFromHex>("createBigIntFromHex"),
-            InstanceMethod<&AggregatorAddon::FreeBigInt>("freeBigInt"),
-            InstanceMethod<&AggregatorAddon::BigIntToString>("bigIntToString"),
-        });
-        
-        Napi::FunctionReference* constructor = new Napi::FunctionReference();
-        *constructor = Napi::Persistent(func);
-        env.SetInstanceData(constructor);
-        
-        exports.Set("AggregatorAddon", func);
-        return exports;
-    }
+// Create a BigInt from a hex string with improved error handling
+Napi::Value CreateBigIntFromHex(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
     
-    AggregatorAddon(const Napi::CallbackInfo& info) : Napi::ObjectWrap<AggregatorAddon>(info) {
-        Napi::Env env = info.Env();
-        Napi::HandleScope scope(env);
-        
-        // Initialize the aggregator params wrapper
-        params_ = std::make_unique<AggregatorParamsWrapper>();
-    }
-    
-private:
-    std::unique_ptr<AggregatorParamsWrapper> params_;
-    
-    // Method implementations
-    Napi::Value AggregatorInit(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 3) {
-            Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        try {
-            BigIntWrapper N = BigIntWrapper::FromValue(info[0]);
-            BigIntWrapper H = BigIntWrapper::FromValue(info[1]);
-            BigIntWrapper skA = BigIntWrapper::FromValue(info[2]);
-            
-            bool success = params_->Initialize(N, H, skA);
-            return Napi::Number::New(env, success ? 0 : 1);
-        } catch (const Napi::Error& e) {
-            e.ThrowAsJavaScriptException();
-            return env.Null();
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value AddCiphertextToProduct(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1) {
-            Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        try {
-            BigIntWrapper ciphertext = BigIntWrapper::FromValue(info[0]);
-            int result = add_ciphertext_to_product(ciphertext.get(), params_->get());
-            return Napi::Number::New(env, result);
-        } catch (const Napi::Error& e) {
-            e.ThrowAsJavaScriptException();
-            return env.Null();
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value ResetRunningProduct(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        try {
-            int result = reset_running_product(params_->get());
-            return Napi::Number::New(env, result);
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value GetRunningProduct(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        try {
-            BigIntWrapper result;
-            int status = get_running_product(params_->get(), result.get());
-            
-            if (status != 0) {
-                return Napi::Number::New(env, status);
-            }
-            
-            return result.ToValue(env);
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value RaiseToSkA(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1) {
-            Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        try {
-            BigIntWrapper product = BigIntWrapper::FromValue(info[0]);
-            BigIntWrapper result;
-            
-            int status = raise_to_sk_A(product.get(), params_->get(), result.get());
-            
-            if (status != 0) {
-                return Napi::Number::New(env, status);
-            }
-            
-            return result.ToValue(env);
-        } catch (const Napi::Error& e) {
-            e.ThrowAsJavaScriptException();
-            return env.Null();
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value DivideOutMask(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 2) {
-            Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        try {
-            BigIntWrapper P = BigIntWrapper::FromValue(info[0]);
-            BigIntWrapper aux = BigIntWrapper::FromValue(info[1]);
-            BigIntWrapper result;
-            
-            int status = divide_out_mask(P.get(), aux.get(), params_->get(), result.get());
-            
-            if (status != 0) {
-                return Napi::Number::New(env, status);
-            }
-            
-            return result.ToValue(env);
-        } catch (const Napi::Error& e) {
-            e.ThrowAsJavaScriptException();
-            return env.Null();
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value RecoverSum(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1) {
-            Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        try {
-            BigIntWrapper P_prime = BigIntWrapper::FromValue(info[0]);
-            BigIntWrapper result;
-            
-            int status = recover_sum(P_prime.get(), params_->get(), result.get());
-            
-            if (status != 0) {
-                return Napi::Number::New(env, status);
-            }
-            
-            return result.ToValue(env);
-        } catch (const Napi::Error& e) {
-            e.ThrowAsJavaScriptException();
-            return env.Null();
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value AggregateVotesFromRunningProduct(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1) {
-            Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        try {
-            BigIntWrapper aux = BigIntWrapper::FromValue(info[0]);
-            BigIntWrapper result;
-            
-            int status = aggregate_votes_from_running_product(aux.get(), params_->get(), result.get());
-            
-            if (status != 0) {
-                return Napi::Number::New(env, status);
-            }
-            
-            return result.ToValue(env);
-        } catch (const Napi::Error& e) {
-            e.ThrowAsJavaScriptException();
-            return env.Null();
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value UnpackVotes(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 2) {
-            Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        try {
-            BigIntWrapper packed_votes = BigIntWrapper::FromValue(info[0]);
-            size_t max_votes = info[1].ToNumber().Uint32Value();
-            
-            // Allocate memory for unpacked votes
-            std::vector<uint32_t> votes(max_votes, 0);
-            
-            int num_votes = unpack_votes(packed_votes.get(), votes.data(), max_votes);
-            
-            if (num_votes < 0) {
-                return Napi::Number::New(env, num_votes); // Return error code
-            }
-            
-            // Create a JavaScript array with the unpacked votes
-            Napi::Array result = Napi::Array::New(env, num_votes);
-            for (int i = 0; i < num_votes; i++) {
-                result.Set(i, Napi::Number::New(env, votes[i]));
-            }
-            
-            return result;
-        } catch (const Napi::Error& e) {
-            e.ThrowAsJavaScriptException();
-            return env.Null();
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value AggregatorCleanup(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        try {
-            // Create a new params wrapper which will clean up the old one
-            params_ = std::make_unique<AggregatorParamsWrapper>();
-            return Napi::Number::New(env, 0);
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-    
-    Napi::Value CreateBigIntFromHex(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
+    try {
         if (info.Length() < 1 || !info[0].IsString()) {
-            Napi::TypeError::New(env, "Expected a hex string").ThrowAsJavaScriptException();
-            return env.Null();
+            throw Napi::TypeError::New(env, "Expected a hex string");
         }
         
-        try {
-            std::string hexString = info[0].ToString();
-            std::vector<uint8_t> bytes = HexToUint8Array(hexString);
-            
-            BigIntWrapper bigint(bytes.data(), bytes.size());
-            return bigint.ToValue(env);
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
+        std::string hexStr = info[0].As<Napi::String>().Utf8Value();
+        
+        // Simple validation of the hex string
+        if (hexStr.empty()) {
+            throw Napi::Error::New(env, "Hex string is empty");
         }
+        
+        std::vector<uint8_t> bytes = HexToUint8Array(hexStr);
+        
+        if (bytes.empty()) {
+            throw Napi::Error::New(env, "Failed to convert hex string to bytes");
+        }
+        
+        BigIntWrapper bigint(bytes.data(), bytes.size());
+        if (!bigint.get()->data || bigint.get()->length == 0) {
+            throw Napi::Error::New(env, "Failed to create BigInt from bytes");
+        }
+        
+        return bigint.ToValue(env);
+    } catch (const std::exception& e) {
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
     }
-    
-    Napi::Value FreeBigInt(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1) {
-            Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        // No need to explicitly free - the BigIntWrapper will handle cleanup
-        return env.Undefined();
-    }
-    
-    Napi::Value BigIntToString(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1) {
-            Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        try {
-            BigIntWrapper bigint = BigIntWrapper::FromValue(info[0]);
-            std::string hexString = BigIntToHexString(bigint.get());
-            return Napi::String::New(env, hexString);
-        } catch (const Napi::Error& e) {
-            e.ThrowAsJavaScriptException();
-            return env.Null();
-        } catch (const std::exception& e) {
-            Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-            return env.Null();
-        }
-    }
-};
-
-// Initialize the addon
-Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
-    return AggregatorAddon::Init(env, exports);
 }
 
-// Register the addon
-NODE_API_MODULE(aggregator, InitAll)
+// Initialize the aggregator
+Napi::Value AggregatorInit(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    try {
+        if (info.Length() < 3) {
+            throw Napi::TypeError::New(env, "Expected N, H, and skA parameters");
+        }
+        
+        // Clean up previous initialization if necessary
+        if (g_initialized) {
+            aggregator_cleanup(&g_params);
+            g_initialized = false;
+        }
+        
+        // Extract parameters from the arguments
+        BigIntWrapper N = BigIntWrapper::FromValue(info[0]);
+        BigIntWrapper H = BigIntWrapper::FromValue(info[1]);
+        BigIntWrapper skA = BigIntWrapper::FromValue(info[2]);
+        
+        fprintf(stderr, "[DEBUG] Initializing aggregator with N length: %zu, H length: %zu, skA length: %zu\n",
+                N.get()->length, H.get()->length, skA.get()->length);
+                
+        // Check value ranges
+        if (N.get()->length == 0 || N.get()->data == nullptr) {
+            fprintf(stderr, "[ERROR] N parameter is invalid\n");
+            return Napi::Number::New(env, -100);
+        }
+        
+        if (H.get()->length == 0 || H.get()->data == nullptr) {
+            fprintf(stderr, "[ERROR] H parameter is invalid\n");
+            return Napi::Number::New(env, -101);
+        }
+        
+        if (skA.get()->length == 0 || skA.get()->data == nullptr) {
+            fprintf(stderr, "[ERROR] skA parameter is invalid\n");
+            return Napi::Number::New(env, -102);
+        }
+        
+        // Log skA data for debugging
+        fprintf(stderr, "[DEBUG] skA first few bytes: ");
+        for (size_t i = 0; i < std::min(skA.get()->length, (size_t)8); i++) {
+            fprintf(stderr, "%02x ", skA.get()->data[i]);
+        }
+        fprintf(stderr, "\n");
+        
+        // Initialize the aggregator
+        memset(&g_params, 0, sizeof(AggregatorParams));
+fprintf(stderr, "[DEBUG] Calling aggregator_init...\n");
+        int result = aggregator_init(&g_params, N.get(), H.get(), skA.get());
+fprintf(stderr, "[DEBUG] aggregator_init returned: %d\n", result);
+        
+        if (result != 0) {
+            fprintf(stderr, "[ERROR] Failed to initialize aggregator: %d\n", result);
+            return Napi::Number::New(env, result);
+        }
+        
+        fprintf(stderr, "[DEBUG] Aggregator initialization successful\n");
+        g_initialized = true;
+        return Napi::Number::New(env, 0); // Success
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[ERROR] Exception in AggregatorInit: %s\n", e.what());
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+// Reset the running product
+Napi::Value ResetRunningProduct(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    try {
+        if (!g_initialized) {
+            throw Napi::Error::New(env, "Aggregator not initialized");
+        }
+        
+        fprintf(stderr, "[DEBUG] Resetting running product\n");
+        int result = reset_running_product(&g_params);
+        
+        return Napi::Number::New(env, result);
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[ERROR] Exception in ResetRunningProduct: %s\n", e.what());
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+// Add a ciphertext to the running product
+Napi::Value AddCiphertextToProduct(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    try {
+        if (!g_initialized) {
+            throw Napi::Error::New(env, "Aggregator not initialized");
+        }
+        
+        if (info.Length() < 1) {
+            throw Napi::TypeError::New(env, "Expected ciphertext parameter");
+        }
+        
+        // Extract ciphertext from arguments
+        BigIntWrapper ciphertext = BigIntWrapper::FromValue(info[0]);
+        
+        // Add ciphertext to the running product
+        int result = add_ciphertext_to_product(ciphertext.get(), &g_params);
+        
+        return Napi::Number::New(env, result);
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[ERROR] Exception in AddCiphertextToProduct: %s\n", e.what());
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+// Get the current running product
+Napi::Value GetRunningProduct(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    try {
+        if (!g_initialized) {
+            throw Napi::Error::New(env, "Aggregator not initialized");
+        }
+        
+        // Create a BigInt to hold the result
+        BigInt result = {nullptr, 0};
+        
+        // Get the running product
+        int status = get_running_product(&g_params, &result);
+        
+        if (status != 0) {
+            throw Napi::Error::New(env, "Failed to get running product");
+        }
+        
+        // Convert the result to a JS object
+        BigIntWrapper resultWrapper(result.data, result.length);
+        return resultWrapper.ToValue(env);
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[ERROR] Exception in GetRunningProduct: %s\n", e.what());
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+// Aggregate votes from the running product
+Napi::Value AggregateVotesFromRunningProduct(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    try {
+        if (!g_initialized) {
+            throw Napi::Error::New(env, "Aggregator not initialized");
+        }
+        
+        if (info.Length() < 1) {
+            throw Napi::TypeError::New(env, "Expected auxiliary value parameter");
+        }
+        
+        // Extract auxiliary value from arguments
+        BigIntWrapper aux = BigIntWrapper::FromValue(info[0]);
+        
+        // Create a BigInt to hold the result
+        BigInt result = {nullptr, 0};
+        
+        fprintf(stderr, "[DEBUG] Starting vote aggregation process\n");
+        fprintf(stderr, "[DEBUG] Auxiliary value length: %zu bytes\n", aux.get()->length);
+        fprintf(stderr, "[DEBUG] Running product length: %zu bytes\n", g_params.running_product.length);
+        
+        // Aggregate votes with detailed progress logging
+        fprintf(stderr, "[TRACE] Step 1: About to call aggregate_votes_from_running_product\n");
+        int status = aggregate_votes_from_running_product(aux.get(), &g_params, &result);
+        fprintf(stderr, "[TRACE] Step 2: aggregate_votes_from_running_product returned: %d\n", status);
+        
+        if (status != 0) {
+            fprintf(stderr, "[ERROR] Failed to aggregate votes: %d\n", status);
+            return Napi::Number::New(env, status);
+        }
+        
+        fprintf(stderr, "[DEBUG] Aggregation successful, result length: %zu bytes\n", result.length);
+        
+        // Convert the result to a JS object
+        BigIntWrapper resultWrapper(result.data, result.length);
+        return resultWrapper.ToValue(env);
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[ERROR] Exception in AggregateVotesFromRunningProduct: %s\n", e.what());
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+// Unpack votes
+Napi::Value UnpackVotes(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    try {
+        if (!g_initialized) {
+            throw Napi::Error::New(env, "Aggregator not initialized");
+        }
+        
+        if (info.Length() < 2) {
+            throw Napi::TypeError::New(env, "Expected packed votes and max votes parameters");
+        }
+        
+        // Extract parameters
+        BigIntWrapper packed_votes = BigIntWrapper::FromValue(info[0]);
+        size_t max_votes = info[1].ToNumber().Uint32Value();
+        
+        fprintf(stderr, "[DEBUG] Unpacking votes, max votes: %zu\n", max_votes);
+        
+        // Allocate memory for unpacked votes
+        std::vector<uint32_t> votes(max_votes, 0);
+        
+        // Unpack the votes
+        int num_votes = unpack_votes(packed_votes.get(), votes.data(), max_votes);
+        
+        if (num_votes < 0) {
+            fprintf(stderr, "[ERROR] Failed to unpack votes: %d\n", num_votes);
+            return Napi::Number::New(env, num_votes);
+        }
+        
+        // Create a JavaScript array with the unpacked votes
+        Napi::Array result = Napi::Array::New(env, num_votes);
+        for (int i = 0; i < num_votes; i++) {
+            result.Set(i, Napi::Number::New(env, votes[i]));
+        }
+        
+        return result;
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[ERROR] Exception in UnpackVotes: %s\n", e.what());
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+// Convert a BigInt to a string
+Napi::Value BigIntToString(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    try {
+        if (info.Length() < 1) {
+            throw Napi::TypeError::New(env, "Expected BigInt parameter");
+        }
+        
+        // Extract BigInt from arguments
+        BigIntWrapper bigint = BigIntWrapper::FromValue(info[0]);
+        
+        // Convert to hex string
+        std::string hexString = BigIntToHexString(bigint.get());
+        
+        return Napi::String::New(env, hexString);
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[ERROR] Exception in BigIntToString: %s\n", e.what());
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+// Clean up the aggregator
+Napi::Value AggregatorCleanup(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    try {
+        if (!g_initialized) {
+            fprintf(stderr, "[INFO] Aggregator not initialized, nothing to clean up\n");
+            return Napi::Number::New(env, 0); // Nothing to clean up
+        }
+        
+        fprintf(stderr, "[DEBUG] Cleaning up aggregator resources\n");
+        
+        // Clean up the aggregator
+        int result = aggregator_cleanup(&g_params);
+        fprintf(stderr, "[DEBUG] aggregator_cleanup returned: %d\n", result);
+        
+        g_initialized = false;
+        
+        return Napi::Number::New(env, result);
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[ERROR] Exception in AggregatorCleanup: %s\n", e.what());
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+// Initialize the module
+Napi::Object Init(Napi::Env env, Napi::Object exports) {
+    // Register the functions
+    exports.Set("createBigIntFromHex", Napi::Function::New(env, CreateBigIntFromHex));
+    exports.Set("aggregatorInit", Napi::Function::New(env, AggregatorInit));
+    exports.Set("resetRunningProduct", Napi::Function::New(env, ResetRunningProduct));
+    exports.Set("addCiphertextToProduct", Napi::Function::New(env, AddCiphertextToProduct));
+    exports.Set("getRunningProduct", Napi::Function::New(env, GetRunningProduct));
+    exports.Set("aggregateVotesFromRunningProduct", Napi::Function::New(env, AggregateVotesFromRunningProduct));
+    exports.Set("unpackVotes", Napi::Function::New(env, UnpackVotes));
+    exports.Set("bigIntToString", Napi::Function::New(env, BigIntToString));
+    exports.Set("aggregatorCleanup", Napi::Function::New(env, AggregatorCleanup));
+    
+    return exports;
+}
+
+NODE_API_MODULE(aggregator, Init)

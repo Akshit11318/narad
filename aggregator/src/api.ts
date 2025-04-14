@@ -5,13 +5,12 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 // Define the API endpoint to fetch ciphertexts and params
-const API_URL = process.env.API_URL || "http://localhost:3000";
-
+const API_URL = "http://localhost:3000/api/aggregator";
 // Define the interface for election parameters
 interface ElectionParams {
   N: string;
   H: string;
-  Ska: string;
+  skA: string;
 }
 
 // Define the interface for ciphertext data
@@ -41,19 +40,19 @@ export async function fetchElectionParams(): Promise<ElectionParams> {
   }
 }
 
-/**
- * Fetch ciphertexts from the API
- * @returns Array of ciphertext hex strings
- */
-export async function fetchCiphertexts(): Promise<string[]> {
-  try {
-    const response = await axios.get(`${API_URL}/ciphertexts`);
-    return response.data.ciphertexts;
-  } catch (error) {
-    console.error("Error fetching ciphertexts:", error);
-    throw error;
-  }
-}
+// /**
+//  * Fetch ciphertexts from the API
+//  * @returns Array of ciphertext hex strings
+//  */
+// export async function fetchCiphertexts(): Promise<string[]> {
+//   try {
+//     const response = await axios.get(`${API_URL}/ciphertexts`);
+//     return response.data.ciphertexts;
+//   } catch (error) {
+//     console.error("Error fetching ciphertexts:", error);
+//     throw error;
+//   }
+// }
 
 /**
  * Fetch both ciphertexts and auxiliary value in a single request
@@ -61,7 +60,7 @@ export async function fetchCiphertexts(): Promise<string[]> {
  */
 export async function fetchCiphertextsAndAux(): Promise<CiphertextsAndAuxResponse> {
   try {
-    const response = await axios.get(`${API_URL}/aggregator/ciphertexts-and-aux`);
+    const response = await axios.get(`${API_URL}/ciphertexts-and-aux`);
     return response.data;
   } catch (error) {
     console.error("Error fetching ciphertexts and auxiliary value:", error);
@@ -69,19 +68,19 @@ export async function fetchCiphertextsAndAux(): Promise<CiphertextsAndAuxRespons
   }
 }
 
-/**
- * Fetch auxiliary value from the collector
- * @returns Auxiliary value hex string
- */
-export async function fetchAuxiliaryValue(): Promise<string> {
-  try {
-    const response = await axios.get(`${API_URL}/auxiliary-value`);
-    return response.data.auxiliaryValue;
-  } catch (error) {
-    console.error("Error fetching auxiliary value:", error);
-    throw error;
-  }
-}
+// /**
+//  * Fetch auxiliary value from the collector
+//  * @returns Auxiliary value hex string
+//  */
+// export async function fetchAuxiliaryValue(): Promise<string> {
+//   try {
+//     const response = await axios.get(`${API_URL}/auxiliary-value`);
+//     return response.data.auxiliaryValue;
+//   } catch (error) {
+//     console.error("Error fetching auxiliary value:", error);
+//     throw error;
+//   }
+// }
 
 /**
  * Submit the aggregated result to the API

@@ -496,33 +496,261 @@ int compare_bigint(const BigInt* a, const BigInt* b) {
  */
 int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
     if (!a || !modulus || !result) {
-        return -1; // Invalid parameters
+        fprintf(stderr, "[ERROR] Invalid parameters in modular_inverse\n");
+        return -1;
     }
-    
-    // Check if a and modulus are coprime (gcd(a, modulus) == 1)
-    BigInt gcd_result;
-    if (gcd(a, modulus, &gcd_result) != 0) {
-        free_bigint(&gcd_result);
-        return -1; // Error in GCD calculation
-    }
+
+    fprintf(stderr, "[DEBUG] Starting modular inverse calculation\n");
+
+    // Initialize variables for extended Euclidean algorithm
+    BigInt old_r = create_bigint(modulus->data, modulus->length);
+    BigInt r = create_bigint(a->data, a->length);
     
     uint8_t one_val = 1;
-    BigInt one = create_bigint(&one_val, 1);
+    uint8_t zero_val = 0;
+    BigInt old_s = create_bigint(&zero_val, 1);
+    BigInt s = create_bigint(&one_val, 1);
     
-    if (compare_bigint(&gcd_result, &one) != 0) {
-        free_bigint(&gcd_result);
-        free_bigint(&one);
-        return -2; // Inverse does not exist
+    fprintf(stderr, "[DEBUG] Initialized variables for extended Euclidean algorithm\n");
+
+    // Extended Euclidean algorithm
+    while (r.length > 1 || (r.length == 1 && r.data[0] != 0)) {
+        // Calculate quotient and remainder
+        BigInt quotient = {NULL, 0};
+        BigInt temp_r = {NULL, 0};
+        
+        // Perform division to get quotient and remainder
+        if (bigint_divide(&old_r, &r, &quotient, &temp_r) != 0) {
+            fprintf(stderr, "[ERROR] Division failed in modular_inverse\n");
+            free_bigint(&old_r);
+            free_bigint(&r);
+            free_bigint(&old_s);
+            free_bigint(&s);
+            return -2;
+        }
+
+        // Update r values: old_r = r, r = temp_r
+        free_bigint(&old_r);
+        old_r = r;
+        r = temp_r;
+
+        // Calculate new s: temp_s = old_s - quotient * s
+        BigInt temp_product = {NULL, 0};
+        if (multiply_bigint(&quotient, &s, &temp_product) != 0) {
+            fprintf(stderr, "[ERROR] Multiplication failed in modular_inverse\n");
+            free_bigint(&old_r);
+            free_bigint(&r);
+            free_bigint(&old_s);
+            free_bigint(&s);
+            free_bigint(&quotient);
+            return -2;
+        }
+
+        BigInt temp_s = {NULL, 0};
+        if (bigint_subtract(&old_s, &temp_product, &temp_s) != 0) {
+            fprintf(stderr, "[ERROR] Subtraction failed in modular_inverse\n");
+            free_bigint(&old_r);
+            free_bigint(&r);
+            free_bigint(&old_s);
+            free_bigint(&s);
+            free_bigint(&quotient);
+            free_bigint(&temp_product);
+            return -2;
+        }
+
+        // Update s values: old_s = s, s = temp_s
+        free_bigint(&old_s);
+        old_s = s;
+        s = temp_s;
+
+        free_bigint(&quotient);
+        free_bigint(&temp_product);
     }
-    
-    free_bigint(&gcd_result);
+
+    // Check if inverse exists (gcd should be 1)
+    BigInt one = create_bigint(&one_val, 1);
+    if (compare_bigint(&old_r, &one) != 0) {
+        fprintf(stderr, "[ERROR] Modular inverse does not exist\n");
+        free_bigint(&old_r);
+        free_bigint(&r);
+        free_bigint(&old_s);
+        free_bigint(&s);
+        free_bigint(&one);
+        return -3;
+    }
     free_bigint(&one);
-    
-    // For now, we'll just set the result to a placeholder
-    // In a real implementation, this would use the extended Euclidean algorithm
-    uint8_t placeholder = 1;
-    *result = create_bigint(&placeholder, 1);
-    
+
+    // Make sure the result is positive
+    while (old_s.length > 0 && old_s.data[old_s.length - 1] & 0x80) {
+        BigInt temp = {NULL, 0};
+        if (modular_addition(&old_s, modulus, modulus, &temp) != 0) {
+            fprintf(stderr, "[ERROR] Failed to make result positive\n");
+            free_bigint(&old_r);
+            free_bigint(&r);
+            free_bigint(&old_s);
+            free_bigint(&s);
+            return -2;
+        }
+        free_bigint(&old_s);
+        old_s = temp;
+    }
+
+    // Copy the result
+    *result = create_bigint(old_s.data, old_s.length);
+
+    // Clean up
+    free_bigint(&old_r);
+    free_bigint(&r);
+    free_bigint(&old_s);
+    free_bigint(&s);
+
+    fprintf(stderr, "[DEBUG] Modular inverse calculation completed successfully\n");
+    return 0;
+}
+
+
+/**
+ * @brief Subtract two BigInts: result = a - b
+ *
+ * This function subtracts two BigInts with proper borrow handling and leading zero removal.
+ * It ensures that a >= b before performing the subtraction.
+ *
+ * @param a First operand (minuend)
+ * @param b Second operand (subtrahend)
+ * @param result Pointer to store the result
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int bigint_subtract(const BigInt* a, const BigInt* b, BigInt* result) {
+    if (!a || !b || !result) {
+        fprintf(stderr, "[ERROR] Invalid parameters in bigint_subtract\n");
+        return -1;
+    }
+
+    // Check if a >= b
+    if (compare_bigint(a, b) < 0) {
+        fprintf(stderr, "[ERROR] First operand must be greater than or equal to second operand\n");
+        return -1;
+    }
+
+    // Allocate memory for the result
+    BigInt temp = create_bigint(NULL, a->length);
+    if (!temp.data) {
+        fprintf(stderr, "[ERROR] Memory allocation failed in bigint_subtract\n");
+        return -2;
+    }
+
+    // Perform subtraction with borrow handling
+    int borrow = 0;
+    for (size_t i = 0; i < a->length; i++) {
+        int diff = a->data[i] - (i < b->length ? b->data[i] : 0) - borrow;
+        if (diff < 0) {
+            diff += 256; // Add base (256 for bytes)
+            borrow = 1;
+        } else {
+            borrow = 0;
+        }
+        temp.data[i] = (uint8_t)diff;
+    }
+
+    // Remove leading zeros
+    while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
+        temp.length--;
+    }
+
+    // Copy the result
+    *result = create_bigint(temp.data, temp.length);
+
+    // Clean up
+    free_bigint(&temp);
+
+    return 0;
+}
+
+/**
+ * @brief Divide two BigInts: quotient = a / b, remainder = a % b
+ *
+ * This function performs division of two BigInts using an optimized repeated subtraction
+ * algorithm. It handles edge cases like division by zero and ensures proper memory management.
+ *
+ * @param a First operand (dividend)
+ * @param b Second operand (divisor)
+ * @param quotient Pointer to store the division result
+ * @param remainder Pointer to store the remainder
+ * @return 0 on success, -1 on invalid parameters, -2 on division by zero
+ */
+int bigint_divide(const BigInt* a, const BigInt* b, BigInt* quotient, BigInt* remainder) {
+    if (!a || !b || !quotient || !remainder) {
+        fprintf(stderr, "[ERROR] Invalid parameters in bigint_divide\n");
+        return -1;
+    }
+
+    // Check for division by zero
+    uint8_t zero = 0;
+    BigInt zero_bigint = create_bigint(&zero, 1);
+    if (compare_bigint(b, &zero_bigint) == 0) {
+        fprintf(stderr, "[ERROR] Division by zero\n");
+        free_bigint(&zero_bigint);
+        return -2;
+    }
+    free_bigint(&zero_bigint);
+
+    // Initialize quotient to 0 and remainder to a
+    uint8_t zero_val = 0;
+    *quotient = create_bigint(&zero_val, 1);
+    *remainder = create_bigint(a->data, a->length);
+
+    // If a < b, quotient is 0 and remainder is a
+    if (compare_bigint(a, b) < 0) {
+        return 0;
+    }
+
+    // Initialize temporary variables for the division process
+    BigInt current_multiple = create_bigint(b->data, b->length);
+    BigInt next_multiple = create_bigint(NULL, b->length + 1);
+    BigInt quotient_part = create_bigint(&zero_val, 1);
+    uint8_t one_val = 1;
+    BigInt one = create_bigint(&one_val, 1);
+
+    // Find the largest multiple of b that's <= a
+    while (compare_bigint(&current_multiple, remainder) <= 0) {
+        // Save current values
+        BigInt temp_multiple = current_multiple;
+        BigInt temp_quotient_part = quotient_part;
+
+        // Double the values
+        multiply_bigint(&current_multiple, &one, &next_multiple);
+        multiply_bigint(&quotient_part, &one, &quotient_part);
+
+        // If next multiple would be too large, use current values
+        if (compare_bigint(&next_multiple, remainder) > 0) {
+            // Subtract current multiple from remainder
+            BigInt new_remainder;
+            bigint_subtract(remainder, &temp_multiple, &new_remainder);
+            free_bigint(remainder);
+            *remainder = new_remainder;
+
+            // Add current quotient part to result
+            BigInt new_quotient;
+            modular_addition(quotient, &temp_quotient_part, b, &new_quotient);
+            free_bigint(quotient);
+            *quotient = new_quotient;
+
+            // Reset for next iteration
+            current_multiple = create_bigint(b->data, b->length);
+            quotient_part = create_bigint(&one_val, 1);
+        } else {
+            current_multiple = next_multiple;
+            free_bigint(&temp_multiple);
+            free_bigint(&temp_quotient_part);
+        }
+    }
+
+    // Clean up
+    free_bigint(&current_multiple);
+    free_bigint(&next_multiple);
+    free_bigint(&quotient_part);
+    free_bigint(&one);
+
     return 0;
 }
 

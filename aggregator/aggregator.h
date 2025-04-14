@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include "bigint_ops.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Structure to hold election parameters
  */
@@ -112,4 +116,8 @@ int aggregator_cleanup(AggregatorParams* params);
  * @return Initialized BigInt structure
  */
 
+ #ifdef __cplusplus
+}
+ #endif
+ 
 #endif /* AGGREGATOR_H */

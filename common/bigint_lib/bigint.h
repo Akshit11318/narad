@@ -134,6 +134,25 @@ int bigint_to_hex_string(const BigInt* bigint, char* hex_str, size_t str_size);
  */
 int hex_string_to_bigint(const char* hex_str, BigInt* bigint);
 
+/**
+ * @brief Subtract two BigInts: result = a - b
+ * @param a First operand
+ * @param b Second operand
+ * @param result Pointer to store the result
+ * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ */
+int bigint_subtract(const BigInt* a, const BigInt* b, BigInt* result);
+
+/**
+ * @brief Divide two BigInts: quotient = a / b, remainder = a % b
+ * @param a First operand (dividend)
+ * @param b Second operand (divisor)
+ * @param quotient Pointer to store the division result
+ * @param remainder Pointer to store the remainder
+ * @return 0 on success, -1 on invalid parameters, -2 on division by zero
+ */
+int bigint_divide(const BigInt* a, const BigInt* b, BigInt* quotient, BigInt* remainder);
+
 #ifdef __cplusplus
 }
 #endif
