@@ -33,23 +33,30 @@ BigInt create_bigint(const uint8_t* data, size_t length);
 void free_bigint(BigInt* big_int);
 
 /**
- * @brief Perform modular exponentiation: result = base^exponent mod modulus
- * @param base The base value
- * @param exponent The exponent value
- * @param modulus The modulus value
- * @param result Pointer to store the result
- * @return 0 on success, non-zero on failure
+ * @brief Implementation of modular exponentiation using OpenSSL
+ *
+ * This function calculates (base^exponent) mod modulus efficiently using
+ * OpenSSL's BN_mod_exp function.
+ *
+ * @param base The base value to be raised to a power
+ * @param exponent The power to which the base is raised
+ * @param modulus The modulus for the operation
+ * @param result Pointer to store the result of (base^exponent) mod modulus
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int modular_exponentiation(const BigInt* base, const BigInt* exponent, 
                           const BigInt* modulus, BigInt* result);
 
 /**
- * @brief Perform modular multiplication: result = (a * b) mod modulus
+ * @brief Implementation of modular multiplication using OpenSSL
+ *
+ * This function calculates (a * b) mod modulus using OpenSSL's BN_mod_mul function.
+ *
  * @param a First operand
  * @param b Second operand
- * @param modulus The modulus value
- * @param result Pointer to store the result
- * @return 0 on success, non-zero on failure
+ * @param modulus The modulus for the operation
+ * @param result Pointer to store the result of (a * b) mod modulus
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int modular_multiplication(const BigInt* a, const BigInt* b, 
                            const BigInt* modulus, BigInt* result);
@@ -58,7 +65,7 @@ int modular_multiplication(const BigInt* a, const BigInt* b,
  * @brief Generate a random number that is coprime to the given modulus
  * @param result Pointer to store the generated random number
  * @param modulus The modulus value
- * @return 0 on success, non-zero on failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int generate_random_coprime(BigInt* result, const BigInt* modulus);
 
@@ -67,7 +74,7 @@ int generate_random_coprime(BigInt* result, const BigInt* modulus);
  * @param a First operand
  * @param b Second operand
  * @param result Pointer to store the GCD
- * @return 0 on success, non-zero on failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int gcd(const BigInt* a, const BigInt* b, BigInt* result);
 
@@ -84,17 +91,20 @@ int compare_bigint(const BigInt* a, const BigInt* b);
  * @param a The BigInt to find the inverse of
  * @param modulus The modulus value
  * @param result Pointer to store the result
- * @return 0 on success, non-zero on failure
+ * @return 0 on success, -1 on invalid parameters, -2 if inverse does not exist
  */
 int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result);
 
 /**
  * @brief Perform modular addition: result = (a + b) mod modulus
+ *
+ * This function adds two BigInts and performs modular reduction using OpenSSL.
+ *
  * @param a First operand
  * @param b Second operand
- * @param modulus The modulus value
- * @param result Pointer to store the result
- * @return 0 on success, non-zero on failure
+ * @param modulus The modulus for the operation
+ * @param result Pointer to store the result of (a + b) mod modulus
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int modular_addition(const BigInt* a, const BigInt* b,
                      const BigInt* modulus, BigInt* result);
@@ -104,7 +114,7 @@ int modular_addition(const BigInt* a, const BigInt* b,
  * @param a First operand
  * @param b Second operand
  * @param result Pointer to store the result
- * @return 0 on success, non-zero on failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result);
 
@@ -113,7 +123,7 @@ int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result);
  * @param a The BigInt to find the modulus of
  * @param modulus The modulus value
  * @param result Pointer to store the result
- * @return 0 on success, non-zero on failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int bigint_mod(const BigInt* a, const BigInt* modulus, BigInt* result);
 
@@ -122,7 +132,7 @@ int bigint_mod(const BigInt* a, const BigInt* modulus, BigInt* result);
  * @param bigint Pointer to the BigInt to convert
  * @param hex_str Buffer to store the hex string
  * @param str_size Size of the buffer
- * @return 0 on success, non-zero on failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int bigint_to_hex_string(const BigInt* bigint, char* hex_str, size_t str_size);
 
@@ -130,7 +140,7 @@ int bigint_to_hex_string(const BigInt* bigint, char* hex_str, size_t str_size);
  * @brief Convert hexadecimal string to BigInt
  * @param hex_str The hex string to convert
  * @param bigint Pointer to store the converted BigInt
- * @return 0 on success, non-zero on failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int hex_string_to_bigint(const char* hex_str, BigInt* bigint);
 

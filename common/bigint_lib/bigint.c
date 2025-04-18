@@ -3,7 +3,105 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
-#include <string.h>
+#include "tommath.h"
+
+// Internal structure to hold libtommath mp_int data
+typedef struct {
+    mp_int mp;      // libtommath mp_int structure
+} TomMath_BigInt;
+
+// Initialize a new mp_int
+static mp_int* init_mp_int() {
+    mp_int* mp = (mp_int*)malloc(sizeof(mp_int));
+    if (mp) {
+        mp_init(mp);
+    }
+    return mp;
+}
+
+// Convert BigInt to libtommath mp_int
+static mp_int* bigint_to_mp(const BigInt* big_int) {
+    mp_int* mp = init_mp_int();
+    if (!mp) {
+        return NULL;
+    }
+    
+    if (!big_int || !big_int->data || big_int->length == 0) {
+        return mp; // Return a new zero mp_int
+    }
+    
+    // BigInt data is stored in little-endian, need to reverse for mp_read_unsigned_bin
+    uint8_t* reversed = (uint8_t*)malloc(big_int->length);
+    if (!reversed) {
+        mp_clear(mp);
+        free(mp);
+        return NULL;
+    }
+    
+    for (size_t i = 0; i < big_int->length; i++) {
+        reversed[i] = big_int->data[big_int->length - 1 - i];
+    }
+    
+    if (mp_from_ubin(mp, reversed, big_int->length) != MP_OKAY) {
+        free(reversed);
+        mp_clear(mp);
+        free(mp);
+        return NULL;
+    }
+    
+    free(reversed);
+    return mp;
+}
+
+// Convert libtommath mp_int to BigInt
+static BigInt mp_to_bigint(const mp_int* mp) {
+    BigInt result;
+    
+    if (!mp) {
+        result.data = NULL;
+        result.length = 0;
+        return result;
+    }
+    
+    int mp_size = (int)mp_ubin_size((mp_int*)mp);
+    if (mp_size <= 0) {
+        // Handle zero or error case
+        uint8_t zero = 0;
+        return create_bigint(&zero, 1);
+    }
+    
+    uint8_t* temp = (uint8_t*)malloc(mp_size);
+    if (!temp) {
+        result.data = NULL;
+        result.length = 0;
+        return result;
+    }
+    
+    size_t written = 0;
+    if (mp_to_ubin((mp_int*)mp, temp, mp_size, &written) != MP_OKAY) {
+        free(temp);
+        result.data = NULL;
+        result.length = 0;
+        return result;
+    }
+    
+    // Reverse byte order (big-endian to little-endian)
+    result.length = mp_size;
+    result.data = (uint8_t*)malloc(mp_size);
+    
+    if (!result.data) {
+        free(temp);
+        result.length = 0;
+        return result;
+    }
+    
+    for (int i = 0; i < mp_size; i++) {
+        result.data[i] = temp[mp_size - 1 - i];
+    }
+    
+    free(temp);
+    return result;
+}
 
 /*
  * @brief Create a new BigInt from data
@@ -53,17 +151,16 @@ void free_bigint(BigInt* big_int) {
 }
 
 /**
- * @brief Implementation of modular exponentiation using the square-and-multiply algorithm
+ * @brief Implementation of modular exponentiation using libtommath
  *
- * This function calculates (base^exponent) mod modulus efficiently using the
- * square-and-multiply algorithm, which processes the exponent bit by bit.
- * The time complexity is O(log n) where n is the number of bits in the exponent.
+ * This function calculates (base^exponent) mod modulus efficiently using
+ * libtommath's mp_exptmod function.
  *
  * @param base The base value to be raised to a power
  * @param exponent The power to which the base is raised
  * @param modulus The modulus for the operation
  * @param result Pointer to store the result of (base^exponent) mod modulus
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int modular_exponentiation(const BigInt* base, const BigInt* exponent, 
                           const BigInt* modulus, BigInt* result) {
@@ -71,164 +168,107 @@ int modular_exponentiation(const BigInt* base, const BigInt* exponent,
         return -1; // Invalid parameters
     }
     
-    // Initialize result to 1
-    uint8_t one_val = 1;
-    BigInt one = create_bigint(&one_val, 1);
+    mp_int *mp_base = bigint_to_mp(base);
+    mp_int *mp_exp = bigint_to_mp(exponent);
+    mp_int *mp_mod = bigint_to_mp(modulus);
+    mp_int *mp_result = init_mp_int();
     
-    // Create a copy of the base for calculations
-    BigInt base_copy = create_bigint(base->data, base->length);
-    
-    // Create a temporary result
-    BigInt temp_result = create_bigint(one.data, one.length);
-    
-    // For each bit in the exponent
-    for (size_t i = 0; i < exponent->length * 8; i++) {
-        size_t byte_idx = i / 8;
-        size_t bit_idx = i % 8;
-        
-        // If the current bit is set
-        if (byte_idx < exponent->length && 
-            (exponent->data[exponent->length - 1 - byte_idx] & (1 << bit_idx))) {
-            // result = (result * base) % modulus
-            modular_multiplication(&temp_result, &base_copy, modulus, &temp_result);
-        }
-        
-        // Square the base: base = (base * base) % modulus
-        modular_multiplication(&base_copy, &base_copy, modulus, &base_copy);
+    if (!mp_base || !mp_exp || !mp_mod || !mp_result) {
+        // Clean up allocated mp_ints
+        if (mp_base) { mp_clear(mp_base); free(mp_base); }
+        if (mp_exp) { mp_clear(mp_exp); free(mp_exp); }
+        if (mp_mod) { mp_clear(mp_mod); free(mp_mod); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
+        return -2; // Memory allocation failure
     }
     
-    // Copy the result
-    *result = create_bigint(temp_result.data, temp_result.length);
+    int status = mp_exptmod(mp_base, mp_exp, mp_mod, mp_result);
+    
+    if (status != MP_OKAY) {
+        // Operation failed
+        mp_clear(mp_base); free(mp_base);
+        mp_clear(mp_exp); free(mp_exp);
+        mp_clear(mp_mod); free(mp_mod);
+        mp_clear(mp_result); free(mp_result);
+        return -2;
+    }
+    
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
     
     // Clean up
-    free_bigint(&one);
-    free_bigint(&base_copy);
-    free_bigint(&temp_result);
+    mp_clear(mp_base); free(mp_base);
+    mp_clear(mp_exp); free(mp_exp);
+    mp_clear(mp_mod); free(mp_mod);
+    mp_clear(mp_result); free(mp_result);
     
     return 0;
 }
 
 /**
- * @brief Implementation of modular multiplication
+ * @brief Implementation of modular multiplication using libtommath
  *
- * This function calculates (a * b) mod modulus. It first multiplies the two
- * numbers and then performs modular reduction.
+ * This function calculates (a * b) mod modulus using libtommath's mp_mulmod function.
  *
  * @param a First operand
  * @param b Second operand
  * @param modulus The modulus for the operation
  * @param result Pointer to store the result of (a * b) mod modulus
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int modular_multiplication(const BigInt* a, const BigInt* b, 
                            const BigInt* modulus, BigInt* result) {
     if (!a || !b || !modulus || !result) {
-        fprintf(stderr, "[ERROR] Invalid parameters in modular_multiplication\n");
         return -1; // Invalid parameters
     }
     
-    fprintf(stderr, "[DEBUG] Starting modular_multiplication: a(%zu bytes), b(%zu bytes), modulus(%zu bytes)\n", 
-            a->length, b->length, modulus->length);
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_b = bigint_to_mp(b);
+    mp_int *mp_mod = bigint_to_mp(modulus);
+    mp_int *mp_result = init_mp_int();
     
-    // Allocate memory for the product (needs twice the size)
-    // Ensure we allocate enough space - use max of (a+b length) or (2*modulus length)
-    size_t product_len = a->length + b->length;
-    if (modulus->length * 2 > product_len) {
-        product_len = modulus->length * 2;
+    if (!mp_a || !mp_b || !mp_mod || !mp_result) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_b) { mp_clear(mp_b); free(mp_b); }
+        if (mp_mod) { mp_clear(mp_mod); free(mp_mod); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
+        return -2; // Memory allocation failure
     }
     
-    fprintf(stderr, "[DEBUG] Allocating %zu bytes for product\n", product_len);
-    uint8_t* product = (uint8_t*)calloc(product_len, 1);
+    int status = mp_mulmod(mp_a, mp_b, mp_mod, mp_result);
     
-    if (!product) {
-        fprintf(stderr, "[ERROR] Memory allocation failed in modular_multiplication\n");
-        return -1; // Memory allocation failed
+    if (status != MP_OKAY) {
+        // Operation failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_b); free(mp_b);
+        mp_clear(mp_mod); free(mp_mod);
+        mp_clear(mp_result); free(mp_result);
+        return -2;
     }
     
-    // Multiply the two numbers (simplified - not efficient for large numbers)
-    fprintf(stderr, "[DEBUG] Starting multiplication loop\n");
-    for (size_t i = 0; i < a->length; i++) {
-        uint16_t carry = 0;
-        for (size_t j = 0; j < b->length || carry; j++) {
-            uint16_t current = 0;
-            
-            // Make sure we don't access out of bounds memory
-            if (i + j < product_len) {
-                current = product[i + j];
-                
-                if (j < b->length) {
-                    current += (uint16_t)a->data[i] * b->data[j];
-                }
-                
-                current += carry;
-                product[i + j] = current & 0xFF;
-                carry = current >> 8;
-            } else {
-                // If we would overflow, break
-                break;
-            }
-        }
-    }
-    fprintf(stderr, "[DEBUG] Multiplication completed\n");
-    
-    // For now, we'll just create a BigInt from the product
-    BigInt product_bigint;
-    product_bigint.data = product;
-    product_bigint.length = product_len;
-    
-    // Remove leading zeros
-    while (product_bigint.length > 1 && product_bigint.data[product_bigint.length - 1] == 0) {
-        product_bigint.length--;
-    }
-    
-    fprintf(stderr, "[DEBUG] Starting modular reduction, product length: %zu bytes\n", product_bigint.length);
-    
-    // Use bigint_mod function for efficient modular reduction
-    int reduction_count = 0;
-    
-    // Check if product is already smaller than modulus
-    if (compare_bigint(&product_bigint, modulus) < 0) {
-        fprintf(stderr, "[DEBUG] Product already smaller than modulus, skipping reduction\n");
-    } else {
-        // Use the bigint_mod function which implements a more efficient algorithm
-        BigInt mod_result;
-        int mod_status = bigint_mod(&product_bigint, modulus, &mod_result);
-        
-        if (mod_status != 0) {
-            fprintf(stderr, "[ERROR] Failed to perform modular reduction: %d\n", mod_status);
-            free(product_bigint.data);
-            return -2; // Failed modular reduction
-        }
-        
-        // Free the original product and replace with the modular result
-        free(product_bigint.data);
-        product_bigint = mod_result;
-        
-        fprintf(stderr, "[DEBUG] Modular reduction completed successfully\n");
-    }
-    
-    fprintf(stderr, "[DEBUG] Modular reduction completed after %d iterations\n", reduction_count);
-    
-    // Copy the result
-    *result = create_bigint(product_bigint.data, product_bigint.length);
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
     
     // Clean up
-    free(product_bigint.data);
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_b); free(mp_b);
+    mp_clear(mp_mod); free(mp_mod);
+    mp_clear(mp_result); free(mp_result);
     
-    fprintf(stderr, "[DEBUG] modular_multiplication completed successfully\n");
     return 0;
 }
 
 /**
  * @brief Perform modular addition: result = (a + b) mod modulus
  *
- * This function adds two BigInts and performs modular reduction.
+ * This function adds two BigInts and performs modular reduction using libtommath.
  *
  * @param a First operand
  * @param b Second operand
  * @param modulus The modulus for the operation
  * @param result Pointer to store the result of (a + b) mod modulus
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int modular_addition(const BigInt* a, const BigInt* b,
                      const BigInt* modulus, BigInt* result) {
@@ -236,79 +276,53 @@ int modular_addition(const BigInt* a, const BigInt* b,
         return -1; // Invalid parameters
     }
     
-    // Determine the maximum length needed for the sum
-    size_t max_length = (a->length > b->length) ? a->length : b->length;
-    max_length++; // Add 1 for potential carry
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_b = bigint_to_mp(b);
+    mp_int *mp_modulus = bigint_to_mp(modulus);
+    mp_int *mp_result = init_mp_int();
+    mp_int *mp_temp = init_mp_int();
     
-    // Allocate memory for the sum
-    uint8_t* sum = (uint8_t*)calloc(max_length, 1);
-    if (!sum) {
-        return -1; // Memory allocation failed
+    if (!mp_a || !mp_b || !mp_modulus || !mp_result || !mp_temp) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_b) { mp_clear(mp_b); free(mp_b); }
+        if (mp_modulus) { mp_clear(mp_modulus); free(mp_modulus); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
+        if (mp_temp) { mp_clear(mp_temp); free(mp_temp); }
+        return -2; // Memory allocation failure
     }
     
-    // Perform addition
-    uint8_t carry = 0;
-    for (size_t i = 0; i < max_length; i++) {
-        uint16_t current = carry;
-        
-        if (i < a->length) {
-            current += a->data[i];
-        }
-        
-        if (i < b->length) {
-            current += b->data[i];
-        }
-        
-        sum[i] = current & 0xFF;
-        carry = current >> 8;
+    // Perform addition: temp = a + b
+    if (mp_add(mp_a, mp_b, mp_temp) != MP_OKAY) {
+        // Addition failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_b); free(mp_b);
+        mp_clear(mp_modulus); free(mp_modulus);
+        mp_clear(mp_result); free(mp_result);
+        mp_clear(mp_temp); free(mp_temp);
+        return -2;
     }
     
-    // Determine the actual length of the sum (remove leading zeros)
-    size_t actual_length = max_length;
-    while (actual_length > 1 && sum[actual_length - 1] == 0) {
-        actual_length--;
+    // Perform modular reduction: result = temp mod modulus
+    if (mp_mod(mp_temp, mp_modulus, mp_result) != MP_OKAY) {
+        // Modular reduction failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_b); free(mp_b);
+        mp_clear(mp_modulus); free(mp_modulus);
+        mp_clear(mp_result); free(mp_result);
+        mp_clear(mp_temp); free(mp_temp);
+        return -2;
     }
     
-    // Create a temporary BigInt for the sum
-    BigInt temp_sum = create_bigint(sum, actual_length);
-    free(sum); // Free the original sum array
-    
-    // Perform modular reduction
-    while (compare_bigint(&temp_sum, modulus) >= 0) {
-        // Subtract modulus from sum
-        BigInt temp = create_bigint(NULL, temp_sum.length);
-        if (!temp.data) {
-            free_bigint(&temp_sum);
-            return -1; // Memory allocation failed
-        }
-        
-        // Perform subtraction: temp = temp_sum - modulus
-        int borrow = 0;
-        for (size_t i = 0; i < temp_sum.length; i++) {
-            int diff = temp_sum.data[i] - (i < modulus->length ? modulus->data[i] : 0) - borrow;
-            if (diff < 0) {
-                diff += 256; // Add base (256 for bytes)
-                borrow = 1;
-            } else {
-                borrow = 0;
-            }
-            temp.data[i] = (uint8_t)diff;
-        }
-        
-        // Remove leading zeros
-        while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
-            temp.length--;
-        }
-        
-        free_bigint(&temp_sum);
-        temp_sum = temp;
-    }
-    
-    // Copy the result
-    *result = create_bigint(temp_sum.data, temp_sum.length);
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
     
     // Clean up
-    free_bigint(&temp_sum);
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_b); free(mp_b);
+    mp_clear(mp_modulus); free(mp_modulus);
+    mp_clear(mp_result); free(mp_result);
+    mp_clear(mp_temp); free(mp_temp);
     
     return 0;
 }
@@ -321,57 +335,95 @@ int modular_addition(const BigInt* a, const BigInt* b,
  *
  * @param result Pointer to store the generated random number
  * @param modulus The modulus value
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int generate_random_coprime(BigInt* result, const BigInt* modulus) {
     if (!result || !modulus) {
         return -1; // Invalid parameters
     }
     
-    // Seed the random number generator
-    // In a secure implementation, this would use a cryptographically secure RNG
-    srand((unsigned int)time(NULL));
+    mp_int *mp_modulus = bigint_to_mp(modulus);
+    mp_int *mp_result = init_mp_int();
+    mp_int *mp_gcdiv = init_mp_int();
+    mp_int *mp_one = init_mp_int();
     
-    // Allocate memory for the random number
-    result->length = modulus->length;
-    result->data = (uint8_t*)malloc(result->length);
-    
-    if (!result->data) {
-        return -1; // Memory allocation failed
+    if (!mp_modulus || !mp_result || !mp_gcdiv || !mp_one) {
+        // Clean up allocated mp_ints
+        if (mp_modulus) { mp_clear(mp_modulus); free(mp_modulus); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
+        if (mp_gcdiv) { mp_clear(mp_gcdiv); free(mp_gcdiv); }
+        if (mp_one) { mp_clear(mp_one); free(mp_one); }
+        return -2; // Memory allocation failure
     }
     
-    BigInt gcd_result;
+    // Set mp_one to 1
+    mp_set(mp_one, 1);
+    
+    // Initialize random seed
+    srand(time(NULL));
+    
     int is_coprime = 0;
+    int max_attempts = 100; // Prevent infinite loop
+    int attempts = 0;
     
-    // Keep generating random numbers until we find one that is coprime to the modulus
-    while (!is_coprime) {
-        // Generate a random number
-        for (size_t i = 0; i < result->length; i++) {
-            result->data[i] = (uint8_t)rand();
+    while (!is_coprime && attempts < max_attempts) {
+        attempts++;
+        
+        // Generate a random number less than modulus
+        if (mp_rand(mp_result, mp_count_bits(mp_modulus)) != MP_OKAY) {
+            // Random generation failed
+            mp_clear(mp_modulus); free(mp_modulus);
+            mp_clear(mp_result); free(mp_result);
+            mp_clear(mp_gcdiv); free(mp_gcdiv);
+            mp_clear(mp_one); free(mp_one);
+            return -2;
         }
         
-        // Ensure the number is less than the modulus
-        while (compare_bigint(result, modulus) >= 0) {
-            // Divide by 2 (shift right)
-            for (size_t i = 0; i < result->length; i++) {
-                result->data[i] >>= 1;
+        // Ensure the number is less than modulus
+        if (mp_cmp(mp_result, mp_modulus) != MP_LT) {
+            if (mp_mod(mp_result, mp_modulus, mp_result) != MP_OKAY) {
+                continue;
             }
         }
         
-        // Check if the number is coprime to the modulus
-        if (gcd(result, modulus, &gcd_result) == 0) {
-            // If GCD is 1, the numbers are coprime
-            uint8_t one_val = 1;
-            BigInt one = create_bigint(&one_val, 1);
-            
-            if (compare_bigint(&gcd_result, &one) == 0) {
-                is_coprime = 1;
-            }
-            
-            free_bigint(&one);
-            free_bigint(&gcd_result);
+        // Ensure the number is not zero
+        if (mp_cmp_d(mp_result, 0) == MP_EQ) {
+            continue;
+        }
+        
+        // Calculate GCD
+        if (mp_gcd(mp_result, mp_modulus, mp_gcdiv) != MP_OKAY) {
+            // GCD calculation failed
+            mp_clear(mp_modulus); free(mp_modulus);
+            mp_clear(mp_result); free(mp_result);
+            mp_clear(mp_gcdiv); free(mp_gcdiv);
+            mp_clear(mp_one); free(mp_one);
+            return -2;
+        }
+        
+        // Check if GCD is 1 (numbers are coprime)
+        if (mp_cmp(mp_gcdiv, mp_one) == MP_EQ) {
+            is_coprime = 1;
         }
     }
+    
+    if (!is_coprime) {
+        // Failed to find a coprime after max attempts
+        mp_clear(mp_modulus); free(mp_modulus);
+        mp_clear(mp_result); free(mp_result);
+        mp_clear(mp_gcdiv); free(mp_gcdiv);
+        mp_clear(mp_one); free(mp_one);
+        return -2;
+    }
+    
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
+    
+    // Clean up
+    mp_clear(mp_modulus); free(mp_modulus);
+    mp_clear(mp_result); free(mp_result);
+    mp_clear(mp_gcdiv); free(mp_gcdiv);
+    mp_clear(mp_one); free(mp_one);
     
     return 0;
 }
@@ -384,67 +436,41 @@ int generate_random_coprime(BigInt* result, const BigInt* modulus) {
  * @param a First operand
  * @param b Second operand
  * @param result Pointer to store the GCD
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int gcd(const BigInt* a, const BigInt* b, BigInt* result) {
     if (!a || !b || !result) {
         return -1; // Invalid parameters
     }
     
-    // Create copies of a and b
-    BigInt a_copy = create_bigint(a->data, a->length);
-    BigInt b_copy = create_bigint(b->data, b->length);
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_b = bigint_to_mp(b);
+    mp_int *mp_result = init_mp_int();
     
-    // Euclidean algorithm
-    while (b_copy.length > 1 || (b_copy.length == 1 && b_copy.data[0] != 0)) {
-        // Perform a % b using repeated subtraction (inefficient but functional)
-        while (compare_bigint(&a_copy, &b_copy) >= 0) {
-            // Subtract b from a
-            BigInt temp = create_bigint(NULL, a_copy.length);
-            if (!temp.data) {
-                free_bigint(&a_copy);
-                free_bigint(&b_copy);
-                return -1; // Memory allocation failed
-            }
-            
-            // Perform subtraction: temp = a_copy - b_copy
-            int borrow = 0;
-            for (size_t i = 0; i < a_copy.length; i++) {
-                int diff = a_copy.data[i] - (i < b_copy.length ? b_copy.data[i] : 0) - borrow;
-                if (diff < 0) {
-                    diff += 256; // Add base (256 for bytes)
-                    borrow = 1;
-                } else {
-                    borrow = 0;
-                }
-                temp.data[i] = (uint8_t)diff;
-            }
-            
-            // Remove leading zeros
-            while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
-                temp.length--;
-            }
-            
-            free_bigint(&a_copy);
-            a_copy = temp;
-        }
-        
-        // Swap a and b
-        BigInt temp = a_copy;
-        a_copy = b_copy;
-        b_copy = temp;
-        
-        // Reset temp to avoid double free
-        temp.data = NULL;
-        temp.length = 0;
+    if (!mp_a || !mp_b || !mp_result) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_b) { mp_clear(mp_b); free(mp_b); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
+        return -2; // Memory allocation failure
     }
     
-    // Copy the result (a is the GCD)
-    *result = create_bigint(a_copy.data, a_copy.length);
+    // Calculate GCD
+    if (mp_gcd(mp_a, mp_b, mp_result) != MP_OKAY) {
+        // GCD calculation failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_b); free(mp_b);
+        mp_clear(mp_result); free(mp_result);
+        return -2;
+    }
+    
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
     
     // Clean up
-    free_bigint(&a_copy);
-    free_bigint(&b_copy);
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_b); free(mp_b);
+    mp_clear(mp_result); free(mp_result);
     
     return 0;
 }
@@ -463,367 +489,296 @@ int compare_bigint(const BigInt* a, const BigInt* b) {
         return 0; // Invalid parameters
     }
     
-    // Compare lengths first
-    if (a->length < b->length) {
-        return -1;
-    } else if (a->length > b->length) {
-        return 1;
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_b = bigint_to_mp(b);
+    
+    if (!mp_a || !mp_b) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_b) { mp_clear(mp_b); free(mp_b); }
+        return 0; // Memory allocation failure
     }
     
-    // Same length, compare byte by byte from most significant to least
-    for (size_t i = 0; i < a->length; i++) {
-        size_t idx = a->length - 1 - i; // Start from most significant byte
-        if (a->data[idx] < b->data[idx]) {
-            return -1;
-        } else if (a->data[idx] > b->data[idx]) {
-            return 1;
-        }
-    }
+    int result = mp_cmp(mp_a, mp_b);
     
-    // Equal
-    return 0;
+    // Convert libtommath comparison result to our expected format
+    // MP_LT = -1, MP_EQ = 0, MP_GT = 1
+    
+    // Clean up
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_b); free(mp_b);
+    
+    return result;
 }
+
 /**
  * @brief Calculate the modular inverse of a BigInt
  *
- * This function calculates the modular inverse of a BigInt using the extended Euclidean algorithm.
+ * This function calculates the modular inverse of a BigInt using libtommath's mp_invmod.
  *
  * @param a The BigInt to find the inverse of
  * @param modulus The modulus value
  * @param result Pointer to store the result
  * @return 0 on success, -1 on invalid parameters, -2 if inverse does not exist
  */
- int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
+int modular_inverse(const BigInt* a, const BigInt* modulus, BigInt* result) {
     if (!a || !modulus || !result) {
-        fprintf(stderr, "[ERROR] Invalid parameters in modular_inverse\n");
-        return -1;
-    }
-
-    // Create zero for comparison
-    uint8_t zero_val = 0;
-    BigInt zero = create_bigint(&zero_val, 1);
-    
-    // Check if modulus is zero
-    if (compare_bigint(modulus, &zero) == 0) {
-        fprintf(stderr, "[ERROR] Modulus cannot be zero\n");
-        free_bigint(&zero);
-        return -1;
+        return -1; // Invalid parameters
     }
     
-    // Check if a is zero
-    if (compare_bigint(a, &zero) == 0) {
-        fprintf(stderr, "[ERROR] Input 'a' cannot be zero (no inverse exists)\n");
-        free_bigint(&zero);
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_mod = bigint_to_mp(modulus);
+    mp_int *mp_result = init_mp_int();
+    
+    if (!mp_a || !mp_mod || !mp_result) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_mod) { mp_clear(mp_mod); free(mp_mod); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
+        return -2; // Memory allocation failure
+    }
+    
+    // Calculate modular inverse
+    int status = mp_invmod(mp_a, mp_mod, mp_result);
+    
+    if (status != MP_OKAY) {
+        // Inverse does not exist or calculation failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_mod); free(mp_mod);
+        mp_clear(mp_result); free(mp_result);
         return -2;
     }
-    free_bigint(&zero);
-
-    fprintf(stderr, "[DEBUG] Starting modular inverse calculation\n");
-
-    // Initialize variables for extended Euclidean algorithm
-    BigInt old_r = create_bigint(modulus->data, modulus->length);
-    BigInt r = create_bigint(a->data, a->length);
     
-    uint8_t one_val = 1;
-    // uint8_t zero_val = 0;
-    BigInt old_s = create_bigint(&zero_val, 1);
-    BigInt s = create_bigint(&one_val, 1);
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
     
-    fprintf(stderr, "[DEBUG] Initialized variables for extended Euclidean algorithm\n");
-
-    // Extended Euclidean algorithm
-    int iteration_count = 0;
-    const int MAX_ITERATIONS = 1000; // Prevent infinite loops
-    
-    // We'll use a different approach to detect if we're making progress
-    BigInt previous_r = {NULL, 0};
-    
-    while (!is_zero(&r) && iteration_count < MAX_ITERATIONS) {
-        iteration_count++;
-        
-        // Store previous r for comparison
-        if (previous_r.data) {
-            free_bigint(&previous_r);
-        }
-        previous_r = create_bigint(r.data, r.length);
-        
-        // Calculate quotient and remainder
-        BigInt quotient = {NULL, 0};
-        BigInt temp_r = {NULL, 0};
-        
-        // Explicit check to avoid division by zero
-        if (is_zero(&r)) {
-            fprintf(stderr, "[ERROR] Division by zero detected in modular_inverse\n");
-            free_bigint(&old_r);
-            free_bigint(&r);
-            free_bigint(&old_s);
-            free_bigint(&s);
-            free_bigint(&previous_r);
-            return -2;
-        }
-        
-        // Perform division to get quotient and remainder
-        if (bigint_divide(&old_r, &r, &quotient, &temp_r) != 0) {
-            fprintf(stderr, "[ERROR] Division failed in modular_inverse after %d iterations\n", iteration_count);
-            free_bigint(&old_r);
-            free_bigint(&r);
-            free_bigint(&old_s);
-            free_bigint(&s);
-            free_bigint(&previous_r);
-            return -2;
-        }
-        
-        // Verify we're making progress by ensuring remainder is smaller than divisor
-        if (compare_bigint(&temp_r, &r) >= 0) {
-            fprintf(stderr, "[ERROR] Algorithm not making progress in modular_inverse (remainder >= divisor)\n");
-            free_bigint(&old_r);
-            free_bigint(&r);
-            free_bigint(&old_s);
-            free_bigint(&s);
-            free_bigint(&quotient);
-            free_bigint(&temp_r);
-            free_bigint(&previous_r);
-            return -2;
-        }
-
-        // Update r values: old_r = r, r = temp_r
-        free_bigint(&old_r);
-        old_r = r;
-        r = temp_r;
-
-        // Calculate new s: temp_s = old_s - quotient * s
-        BigInt temp_product = {NULL, 0};
-        if (multiply_bigint(&quotient, &s, &temp_product) != 0) {
-            fprintf(stderr, "[ERROR] Multiplication failed in modular_inverse\n");
-            free_bigint(&old_r);
-            free_bigint(&r);
-            free_bigint(&old_s);
-            free_bigint(&s);
-            free_bigint(&quotient);
-            free_bigint(&previous_r);
-            return -2;
-        }
-
-        BigInt temp_s = {NULL, 0};
-        if (bigint_subtract(&old_s, &temp_product, &temp_s) != 0) {
-            fprintf(stderr, "[ERROR] Subtraction failed in modular_inverse\n");
-            free_bigint(&old_r);
-            free_bigint(&r);
-            free_bigint(&old_s);
-            free_bigint(&s);
-            free_bigint(&quotient);
-            free_bigint(&temp_product);
-            free_bigint(&previous_r);
-            return -2;
-        }
-
-        // Update s values: old_s = s, s = temp_s
-        free_bigint(&old_s);
-        old_s = s;
-        s = temp_s;
-
-        free_bigint(&quotient);
-        free_bigint(&temp_product);
-    }
-    
-    if (previous_r.data) {
-        free_bigint(&previous_r);
-    }
-
-    // Check if we hit the iteration limit
-    if (iteration_count >= MAX_ITERATIONS) {
-        fprintf(stderr, "[ERROR] Maximum iterations exceeded in modular_inverse\n");
-        free_bigint(&old_r);
-        free_bigint(&r);
-        free_bigint(&old_s);
-        free_bigint(&s);
-        return -2;
-    }
-
-    // Check if inverse exists (gcd should be 1)
-    BigInt one = create_bigint(&one_val, 1);
-    if (compare_bigint(&old_r, &one) != 0) {
-        fprintf(stderr, "[ERROR] Modular inverse does not exist (gcd != 1)\n");
-        free_bigint(&old_r);
-        free_bigint(&r);
-        free_bigint(&old_s);
-        free_bigint(&s);
-        free_bigint(&one);
-        return -2;
-    }
-    free_bigint(&one);
-
-    // Make sure the result is positive
-    while (is_negative(&old_s)) {
-        BigInt temp = {NULL, 0};
-        if (bigint_add(&old_s, modulus, &temp) != 0) {
-            fprintf(stderr, "[ERROR] Failed to make result positive\n");
-            free_bigint(&old_r);
-            free_bigint(&r);
-            free_bigint(&old_s);
-            free_bigint(&s);
-            return -2;
-        }
-        free_bigint(&old_s);
-        old_s = temp;
-    }
-
-    // Copy the result
-    *result = create_bigint(old_s.data, old_s.length);
-
     // Clean up
-    free_bigint(&old_r);
-    free_bigint(&r);
-    free_bigint(&old_s);
-    free_bigint(&s);
-
-    fprintf(stderr, "[DEBUG] Modular inverse calculation completed successfully\n");
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_mod); free(mp_mod);
+    mp_clear(mp_result); free(mp_result);
+    
     return 0;
 }
 
-// Helper function to check if a BigInt is zero
-int is_zero(const BigInt* num) {
-    if (!num || !num->data) return 1; // Treat NULL as zero
-    
-    for (size_t i = 0; i < num->length; i++) {
-        if (num->data[i] != 0) {
-            return 0; // Not zero
-        }
-    }
-    return 1; // Is zero
-}
-
-// Helper function to check if a BigInt is negative
-int is_negative(const BigInt* num) {
-    if (!num || !num->data || num->length == 0) return 0;
-    
-    // Check if the most significant bit is set (indicating negative in two's complement)
-    return (num->data[num->length - 1] & 0x80) != 0;
-}
-
 /**
- * @brief Add two BigInts: result = a + b
- *
- * This function adds two BigInts and stores the result in a new BigInt.
- * The result will have a length equal to the maximum of the input lengths plus one
- * to accommodate any potential carry.
+ * @brief Multiply two BigInts: result = a * b
  *
  * @param a First operand
  * @param b Second operand
  * @param result Pointer to store the result
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
-int bigint_add(const BigInt* a, const BigInt* b, BigInt* result) {
-    if (!a || !b || !result || !a->data || !b->data) {
+int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result) {
+    if (!a || !b || !result) {
         return -1; // Invalid parameters
     }
     
-    // Determine the maximum length needed for the sum
-    size_t max_length = (a->length > b->length) ? a->length : b->length;
-    max_length++; // Add 1 for potential carry
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_b = bigint_to_mp(b);
+    mp_int *mp_result = init_mp_int();
     
-    // Create a new BigInt for the result
-    BigInt temp = create_bigint(NULL, max_length);
-    if (!temp.data) {
+    if (!mp_a || !mp_b || !mp_result) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_b) { mp_clear(mp_b); free(mp_b); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
         return -2; // Memory allocation failure
     }
     
-    // Perform addition with carry
-    uint16_t carry = 0;
-    for (size_t i = 0; i < max_length; i++) {
-        uint16_t sum = carry;
-        
-        // Add from first number if within its length
-        if (i < a->length) {
-            sum += a->data[i];
-        }
-        
-        // Add from second number if within its length
-        if (i < b->length) {
-            sum += b->data[i];
-        }
-        
-        temp.data[i] = sum & 0xFF; // Store the lower byte
-        carry = sum >> 8; // Keep the carry for next iteration
+    // Perform multiplication
+    if (mp_mul(mp_a, mp_b, mp_result) != MP_OKAY) {
+        // Multiplication failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_b); free(mp_b);
+        mp_clear(mp_result); free(mp_result);
+        return -2;
     }
     
-    // Remove leading zeros
-    while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
-        temp.length--;
-    }
-    
-    // Copy the result
-    *result = create_bigint(temp.data, temp.length);
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
     
     // Clean up
-    free_bigint(&temp);
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_b); free(mp_b);
+    mp_clear(mp_result); free(mp_result);
     
     return 0;
 }
 
+/**
+ * @brief Calculate the modulus of one BigInt by another: result = a mod modulus
+ *
+ * @param a The BigInt to find the modulus of
+ * @param modulus The modulus value
+ * @param result Pointer to store the result
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
+ */
+int bigint_mod(const BigInt* a, const BigInt* modulus, BigInt* result) {
+    if (!a || !modulus || !result) {
+        return -1; // Invalid parameters
+    }
+    
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_modulus = bigint_to_mp(modulus);
+    mp_int *mp_result = init_mp_int();
+    
+    if (!mp_a || !mp_modulus || !mp_result) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_modulus) { mp_clear(mp_modulus); free(mp_modulus); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
+        return -2; // Memory allocation failure
+    }
+    
+    // Perform modular reduction
+    if (mp_mod(mp_a, mp_modulus, mp_result) != MP_OKAY) {
+        // Modular reduction failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_modulus); free(mp_modulus);
+        mp_clear(mp_result); free(mp_result);
+        return -2;
+    }
+    
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
+    
+    // Clean up
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_modulus); free(mp_modulus);
+    mp_clear(mp_result); free(mp_result);
+    
+    return 0;
+}
+
+/**
+ * @brief Convert BigInt to hexadecimal string
+ *
+ * @param bigint Pointer to the BigInt to convert
+ * @param hex_str Buffer to store the hex string
+ * @param str_size Size of the buffer
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
+ */
+int bigint_to_hex_string(const BigInt* bigint, char* hex_str, size_t str_size) {
+    if (!bigint || !hex_str || str_size == 0) {
+        return -1; // Invalid parameters
+    }
+    
+    mp_int *mp = bigint_to_mp(bigint);
+    if (!mp) {
+        return -2; // Conversion failed
+    }
+    
+    // Get the required size for the hex string
+    int required_size_int;
+    if (mp_radix_size(mp, 16, (size_t*)&required_size_int) != MP_OKAY) {
+        mp_clear(mp);
+        free(mp);
+        return -2; // Failed to get radix size
+    }
+    size_t required_size = (size_t)required_size_int;
+
+    if (required_size == 0 || required_size > str_size) {
+        mp_clear(mp);
+        free(mp);
+        return -2; // Buffer too small or conversion failed
+    }
+    
+    // Convert to hex string
+    size_t written = 0;
+    if (mp_to_radix(mp, hex_str, str_size, &written, 16) != MP_OKAY) {
+        mp_clear(mp);
+        free(mp);
+        return -2; // Conversion failed
+    }
+    
+    // Clean up
+    mp_clear(mp);
+    free(mp);
+    
+    return 0;
+}
+
+/**
+ * @brief Convert hexadecimal string to BigInt
+ *
+ * @param hex_str The hex string to convert
+ * @param bigint Pointer to store the converted BigInt
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
+ */
+int hex_string_to_bigint(const char* hex_str, BigInt* bigint) {
+    if (!hex_str || !bigint) {
+        return -1; // Invalid parameters
+    }
+    
+    mp_int *mp = init_mp_int();
+    if (!mp) {
+        return -2; // Memory allocation failed
+    }
+    
+    // Convert hex string to mp_int
+    if (mp_read_radix(mp, hex_str, 16) != MP_OKAY) {
+        mp_clear(mp);
+        free(mp);
+        return -2; // Conversion failed
+    }
+    
+    // Convert mp_int to BigInt
+    *bigint = mp_to_bigint(mp);
+    
+    // Clean up
+    mp_clear(mp);
+    free(mp);
+    
+    return 0;
+}
 
 /**
  * @brief Subtract two BigInts: result = a - b
  *
- * This function subtracts two BigInts with proper borrow handling and leading zero removal.
- * It ensures that a >= b before performing the subtraction.
- *
- * @param a First operand (minuend)
- * @param b Second operand (subtrahend)
+ * @param a First operand
+ * @param b Second operand
  * @param result Pointer to store the result
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
 int bigint_subtract(const BigInt* a, const BigInt* b, BigInt* result) {
     if (!a || !b || !result) {
-        fprintf(stderr, "[ERROR] Invalid parameters in bigint_subtract\n");
-        return -1;
+        return -1; // Invalid parameters
     }
-
-    // Check if a >= b
-    if (compare_bigint(a, b) < 0) {
-        fprintf(stderr, "[ERROR] First operand must be greater than or equal to second operand\n");
-        return -1;
+    
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_b = bigint_to_mp(b);
+    mp_int *mp_result = init_mp_int();
+    
+    if (!mp_a || !mp_b || !mp_result) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_b) { mp_clear(mp_b); free(mp_b); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
+        return -2; // Memory allocation failure
     }
-
-    // Allocate memory for the result
-    BigInt temp = create_bigint(NULL, a->length);
-    if (!temp.data) {
-        fprintf(stderr, "[ERROR] Memory allocation failed in bigint_subtract\n");
+    
+    // Perform subtraction
+    if (mp_sub(mp_a, mp_b, mp_result) != MP_OKAY) {
+        // Subtraction failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_b); free(mp_b);
+        mp_clear(mp_result); free(mp_result);
         return -2;
     }
-
-    // Perform subtraction with borrow handling
-    int borrow = 0;
-    for (size_t i = 0; i < a->length; i++) {
-        int diff = a->data[i] - (i < b->length ? b->data[i] : 0) - borrow;
-        if (diff < 0) {
-            diff += 256; // Add base (256 for bytes)
-            borrow = 1;
-        } else {
-            borrow = 0;
-        }
-        temp.data[i] = (uint8_t)diff;
-    }
-
-    // Remove leading zeros
-    while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
-        temp.length--;
-    }
-
-    // Copy the result
-    *result = create_bigint(temp.data, temp.length);
-
+    
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
+    
     // Clean up
-    free_bigint(&temp);
-
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_b); free(mp_b);
+    mp_clear(mp_result); free(mp_result);
+    
     return 0;
 }
 
 /**
  * @brief Divide two BigInts: quotient = a / b, remainder = a % b
- *
- * This function performs division of two BigInts using an optimized repeated subtraction
- * algorithm. It handles edge cases like division by zero and ensures proper memory management.
  *
  * @param a First operand (dividend)
  * @param b Second operand (divisor)
@@ -836,466 +791,135 @@ int bigint_divide(const BigInt* a, const BigInt* b, BigInt* quotient, BigInt* re
         return -1; // Invalid parameters
     }
     
-    if (b->length == 0 || (b->length == 1 && b->data[0] == 0)) {
+    // Check for division by zero
+    if (is_zero(b)) {
         return -2; // Division by zero
     }
     
-    // Initialize quotient to 0 and remainder to a
-    uint8_t zero_val = 0;
-    *quotient = create_bigint(&zero_val, 1);
-    *remainder = create_bigint(a->data, a->length);
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_b = bigint_to_mp(b);
+    mp_int *mp_quotient = init_mp_int();
+    mp_int *mp_remainder = init_mp_int();
     
-    // If a < b, quotient is 0 and remainder is a
-    if (compare_bigint(a, b) < 0) {
-        return 0;
+    if (!mp_a || !mp_b || !mp_quotient || !mp_remainder) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_b) { mp_clear(mp_b); free(mp_b); }
+        if (mp_quotient) { mp_clear(mp_quotient); free(mp_quotient); }
+        if (mp_remainder) { mp_clear(mp_remainder); free(mp_remainder); }
+        return -2; // Memory allocation failure
     }
-
-    // Initialize temporary variables for the division process
-    uint8_t one_val = 1;
-    BigInt one = create_bigint(&one_val, 1);
     
-    // Binary long division algorithm
-    while (compare_bigint(remainder, b) >= 0) {
-        // Find the largest power of 2 such that (b * 2^k) <= remainder
-        BigInt temp_multiple = create_bigint(b->data, b->length);
-        BigInt temp_quotient = create_bigint(&one_val, 1);
-        
-        while (1) {
-            BigInt next_multiple;
-            if (multiply_bigint(&temp_multiple, &one, &next_multiple) != 0) {
-                free_bigint(&temp_multiple);
-                free_bigint(&temp_quotient);
-                free_bigint(&one);
-                return -1;
-            }
-            
-            if (compare_bigint(&next_multiple, remainder) > 0) {
-                free_bigint(&next_multiple);
-                break;
-            }
-            
-            BigInt next_quotient;
-            if (multiply_bigint(&temp_quotient, &one, &next_quotient) != 0) {
-                free_bigint(&next_multiple);
-                free_bigint(&temp_multiple);
-                free_bigint(&temp_quotient);
-                free_bigint(&one);
-                return -1;
-            }
-            
-            free_bigint(&temp_multiple);
-            free_bigint(&temp_quotient);
-            
-            temp_multiple = next_multiple;
-            temp_quotient = next_quotient;
-        }
-        
-        // Subtract from remainder and add to quotient
-        BigInt new_remainder;
-        if (bigint_subtract(remainder, &temp_multiple, &new_remainder) != 0) {
-            free_bigint(&temp_multiple);
-            free_bigint(&temp_quotient);
-            free_bigint(&one);
-            return -1;
-        }
-        free_bigint(remainder);
-        *remainder = new_remainder;
-        
-        // Add temp_quotient to quotient using regular addition
-        BigInt new_quotient;
-        size_t max_len = (quotient->length > temp_quotient.length) ? quotient->length : temp_quotient.length;
-        new_quotient = create_bigint(NULL, max_len + 1);
-        
-        uint16_t carry = 0;
-        for (size_t i = 0; i < max_len || carry; i++) {
-            uint16_t sum = carry;
-            if (i < quotient->length) sum += quotient->data[i];
-            if (i < temp_quotient.length) sum += temp_quotient.data[i];
-            
-            if (i < new_quotient.length) {
-                new_quotient.data[i] = sum & 0xFF;
-                carry = sum >> 8;
-            }
-        }
-        
-        // Remove leading zeros
-        while (new_quotient.length > 1 && new_quotient.data[new_quotient.length - 1] == 0) {
-            new_quotient.length--;
-        }
-        
-        free_bigint(quotient);
-        *quotient = new_quotient;
-        
-        free_bigint(&temp_multiple);
-        free_bigint(&temp_quotient);
+    // Perform division
+    if (mp_div(mp_a, mp_b, mp_quotient, mp_remainder) != MP_OKAY) {
+        // Division failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_b); free(mp_b);
+        mp_clear(mp_quotient); free(mp_quotient);
+        mp_clear(mp_remainder); free(mp_remainder);
+        return -2;
     }
-
+    
+    // Convert results back to BigInt
+    *quotient = mp_to_bigint(mp_quotient);
+    *remainder = mp_to_bigint(mp_remainder);
+    
     // Clean up
-    free_bigint(&one);
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_b); free(mp_b);
+    mp_clear(mp_quotient); free(mp_quotient);
+    mp_clear(mp_remainder); free(mp_remainder);
     
     return 0;
 }
 
 /**
- * @brief Multiply two BigInts: result = a * b
+ * @brief Check if a BigInt is zero
  *
- * This function multiplies two BigInts without modular reduction.
+ * @param num Pointer to the BigInt to check
+ * @return 1 if the BigInt is zero, 0 otherwise
+ */
+int is_zero(const BigInt* num) {
+    if (!num || !num->data || num->length == 0) {
+        return 1; // Treat NULL or empty as zero
+    }
+    
+    mp_int *mp = bigint_to_mp(num);
+    if (!mp) {
+        return 1; // Conversion failed, treat as zero
+    }
+    
+    int result = (mp_cmp_d(mp, 0) == MP_EQ) ? 1 : 0;
+    
+    // Clean up
+    mp_clear(mp);
+    free(mp);
+    
+    return result;
+}
+
+/**
+ * @brief Check if a BigInt is negative
+ *
+ * @param num Pointer to the BigInt to check
+ * @return 1 if the BigInt is negative, 0 otherwise
+ */
+int is_negative(const BigInt* num) {
+    if (!num || !num->data || num->length == 0) {
+        return 0; // Treat NULL or empty as non-negative
+    }
+    
+    // In our implementation, BigInt is stored in little-endian format
+    // Check if the most significant bit is set (indicating negative in two's complement)
+    return (num->data[num->length - 1] & 0x80) != 0;
+}
+
+/**
+ * @brief Add two BigInts: result = a + b
  *
  * @param a First operand
  * @param b Second operand
- * @param result Pointer to store the result of a * b
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
+ * @param result Pointer to store the result
+ * @return 0 on success, -1 on invalid parameters, -2 on operation failure
  */
-int multiply_bigint(const BigInt* a, const BigInt* b, BigInt* result) {
+int bigint_add(const BigInt* a, const BigInt* b, BigInt* result) {
     if (!a || !b || !result) {
         return -1; // Invalid parameters
     }
     
-    // Allocate memory for the product (needs a->length + b->length bytes)
-    size_t product_len = a->length + b->length;
-    uint8_t* product = (uint8_t*)calloc(product_len, 1);
+    mp_int *mp_a = bigint_to_mp(a);
+    mp_int *mp_b = bigint_to_mp(b);
+    mp_int *mp_result = init_mp_int();
     
-    if (!product) {
-        return -2; // Memory allocation failed
+    if (!mp_a || !mp_b || !mp_result) {
+        // Clean up allocated mp_ints
+        if (mp_a) { mp_clear(mp_a); free(mp_a); }
+        if (mp_b) { mp_clear(mp_b); free(mp_b); }
+        if (mp_result) { mp_clear(mp_result); free(mp_result); }
+        return -2; // Memory allocation failure
     }
     
-    // Multiply the two numbers
-    for (size_t i = 0; i < a->length; i++) {
-        uint16_t carry = 0;
-        for (size_t j = 0; j < b->length || carry; j++) {
-            uint16_t current = product[i + j];
-            
-            if (j < b->length) {
-                current += (uint16_t)a->data[i] * b->data[j];
-            }
-            
-            current += carry;
-            product[i + j] = current & 0xFF;
-            carry = current >> 8;
-        }
+    // Perform addition
+    if (mp_add(mp_a, mp_b, mp_result) != MP_OKAY) {
+        // Addition failed
+        mp_clear(mp_a); free(mp_a);
+        mp_clear(mp_b); free(mp_b);
+        mp_clear(mp_result); free(mp_result);
+        return -2;
     }
     
-    // Remove leading zeros
-    size_t actual_length = product_len;
-    while (actual_length > 1 && product[actual_length - 1] == 0) {
-        actual_length--;
-    }
-    
-    // Create the result BigInt
-    *result = create_bigint(product, actual_length);
+    // Convert result back to BigInt
+    *result = mp_to_bigint(mp_result);
     
     // Clean up
-    free(product);
+    mp_clear(mp_a); free(mp_a);
+    mp_clear(mp_b); free(mp_b);
+    mp_clear(mp_result); free(mp_result);
     
     return 0;
 }
 
 
-/**
- * @brief Convert BigInt to hexadecimal string
- *
- * This function converts a BigInt to a hexadecimal string representation.
- *
- * @param bigint Pointer to the BigInt to convert
- * @param hex_str Buffer to store the hex string
- * @param str_size Size of the buffer
- * @return 0 on success, -1 on invalid parameters, -2 if buffer is too small
- */
-int bigint_to_hex_string(const BigInt* bigint, char* hex_str, size_t str_size) {
-    if (!bigint || !hex_str || str_size == 0) {
-        return -1; // Invalid parameters
-    }
-    
-    // Check if the buffer is large enough (2 chars per byte + null terminator)
-    if (str_size < bigint->length * 2 + 1) {
-        return -2; // Buffer too small
-    }
-    
-    // Convert each byte to hex
-    for (size_t i = 0; i < bigint->length; i++) {
-        sprintf(hex_str + i * 2, "%02x", bigint->data[i]);
-    }
-    
-    // Ensure null termination
-    hex_str[bigint->length * 2] = '\0';
-    
-    return 0;
-}
 
-/**
- * @brief Convert hexadecimal string to BigInt
- *
- * This function converts a hexadecimal string to a BigInt representation.
- *
- * @param hex_str The hex string to convert
- * @param bigint Pointer to store the converted BigInt
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
- */
-int hex_string_to_bigint(const char* hex_str, BigInt* bigint) {
-    if (!hex_str || !bigint) {
-        return -1; // Invalid parameters
-    }
-    
-    // Calculate the length of the hex string
-    size_t hex_len = strlen(hex_str);
-    
-    // Ensure the hex string has an even number of characters
-    if (hex_len % 2 != 0) {
-        return -1; // Invalid hex string length
-    }
-    
-    // Calculate the number of bytes needed
-    size_t byte_len = hex_len / 2;
-    
-    // Allocate memory for the BigInt data
-    uint8_t* data = (uint8_t*)malloc(byte_len);
-    if (!data) {
-        return -2; // Memory allocation failed
-    }
-    
-    // Convert hex string to bytes
-    for (size_t i = 0; i < byte_len; i++) {
-        char byte_str[3] = {hex_str[i * 2], hex_str[i * 2 + 1], '\0'};
-        data[i] = (uint8_t)strtol(byte_str, NULL, 16);
-    }
-    
-    // Create the BigInt
-    bigint->data = data;
-    bigint->length = byte_len;
-    
-    return 0;
-}
 
-/**
- * @brief Calculate the modulus of one BigInt by another: result = a mod modulus
- *
- * This function calculates the remainder when dividing a by modulus.
- * It efficiently handles the case where a is already less than modulus.
- *
- * @param a The BigInt to find the modulus of
- * @param modulus The modulus value
- * @param result Pointer to store the result
- * @return 0 on success, -1 on invalid parameters, -2 on memory allocation failure
- */
-int bigint_mod(const BigInt* a, const BigInt* modulus, BigInt* result) {
-    if (!a || !modulus || !result) {
-        fprintf(stderr, "[ERROR] Invalid parameters in bigint_mod\n");
-        return -1; // Invalid parameters
-    }
-    
-    // Check if modulus is zero
-    uint8_t zero_val = 0;
-    BigInt zero = create_bigint(&zero_val, 1);
-    if (compare_bigint(modulus, &zero) == 0) {
-        fprintf(stderr, "[ERROR] Division by zero in bigint_mod\n");
-        free_bigint(&zero);
-        return -1; // Division by zero
-    }
-    free_bigint(&zero);
-    
-    // If a is already less than modulus, just copy a to result
-    if (compare_bigint(a, modulus) < 0) {
-        fprintf(stderr, "[DEBUG] Value already smaller than modulus, copying directly\n");
-        *result = create_bigint(a->data, a->length);
-        return 0;
-    }
-    
-    fprintf(stderr, "[DEBUG] Starting improved modular reduction algorithm\n");
-    
-    // Create a copy of a for calculations
-    BigInt a_copy = create_bigint(a->data, a->length);
-    
-    // Improved modular reduction algorithm with iteration limit
-    int iteration_count = 0;
-    const int MAX_ITERATIONS = 10000; // Set a reasonable limit
-    
-    // First, try direct subtraction for small values
-    if (a->length <= modulus->length + 1) {
-        fprintf(stderr, "[DEBUG] Using direct subtraction for small values\n");
-        while (compare_bigint(&a_copy, modulus) >= 0) {
-            // Simple subtraction for small values
-            BigInt temp;
-            temp.length = a_copy.length;
-            temp.data = (uint8_t*)calloc(temp.length, 1);
-            if (!temp.data) {
-                fprintf(stderr, "[ERROR] Memory allocation failed in bigint_mod\n");
-                free_bigint(&a_copy);
-                return -2; // Memory allocation failure
-            }
-            
-            int borrow = 0;
-            for (size_t i = 0; i < a_copy.length; i++) {
-                int diff = (int)a_copy.data[i] - borrow;
-                if (i < modulus->length) {
-                    diff -= modulus->data[i];
-                }
-                
-                if (diff < 0) {
-                    diff += 256;
-                    borrow = 1;
-                } else {
-                    borrow = 0;
-                }
-                
-                temp.data[i] = (uint8_t)diff;
-            }
-            
-            // Remove leading zeros
-            while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
-                temp.length--;
-            }
-            
-            free_bigint(&a_copy);
-            a_copy = temp;
-            
-            iteration_count++;
-            if (iteration_count > MAX_ITERATIONS) {
-                fprintf(stderr, "[ERROR] Exceeded maximum iterations (%d) in bigint_mod\n", MAX_ITERATIONS);
-                free_bigint(&a_copy);
-                return -2; // Exceeded iteration limit
-            }
-        }
-    } else {
-        fprintf(stderr, "[DEBUG] Using binary long division for large values\n");
-        // For larger values, use binary long division approach
-        while (compare_bigint(&a_copy, modulus) >= 0) {
-            // Find the largest multiple of modulus that is less than or equal to a_copy
-            // Calculate approximate bit difference to optimize the process
-            int bit_diff = (a_copy.length - modulus->length) * 8;
-            if (bit_diff < 0) bit_diff = 0;
-            
-            // Start with a copy of the modulus
-            BigInt shifted_modulus = create_bigint(modulus->data, modulus->length);
-            
-            // Pre-shift to get closer to the target value faster
-            if (bit_diff > 8) {
-                // Shift by bytes first (much faster)
-                size_t byte_shift = bit_diff / 8;
-                BigInt byte_shifted = create_bigint(NULL, modulus->length + byte_shift);
-                if (!byte_shifted.data) {
-                    fprintf(stderr, "[ERROR] Memory allocation failed during byte shifting\n");
-                    free_bigint(&a_copy);
-                    free_bigint(&shifted_modulus);
-                    return -2;
-                }
-                
-                // Copy modulus data with byte shift
-                memset(byte_shifted.data, 0, byte_shift);
-                memcpy(byte_shifted.data + byte_shift, modulus->data, modulus->length);
-                
-                free_bigint(&shifted_modulus);
-                shifted_modulus = byte_shifted;
-            }
-            
-            // Now do bit-by-bit shifting until we find the right value
-            size_t shift = 0;
-            BigInt prev_modulus;
-            
-            while (compare_bigint(&shifted_modulus, &a_copy) <= 0) {
-                // Save the previous value before shifting
-                prev_modulus = shifted_modulus;
-                
-                // Double the value (shift left by 1 bit)
-                shifted_modulus.data = (uint8_t*)calloc(shifted_modulus.length + 1, 1);
-                if (!shifted_modulus.data) {
-                    fprintf(stderr, "[ERROR] Memory allocation failed during bit shifting\n");
-                    free_bigint(&a_copy);
-                    free_bigint(&prev_modulus);
-                    return -2; // Memory allocation failure
-                }
-                
-                uint16_t carry = 0;
-                for (size_t i = 0; i < prev_modulus.length; i++) {
-                    uint16_t val = ((uint16_t)prev_modulus.data[i] << 1) + carry;
-                    shifted_modulus.data[i] = val & 0xFF;
-                    carry = val >> 8;
-                }
-                
-                if (carry) {
-                    shifted_modulus.data[prev_modulus.length] = carry;
-                    shifted_modulus.length = prev_modulus.length + 1;
-                } else {
-                    shifted_modulus.length = prev_modulus.length;
-                }
-                
-                // If we've gone too far, use the previous value
-                if (compare_bigint(&shifted_modulus, &a_copy) > 0) {
-                    free_bigint(&shifted_modulus);
-                    shifted_modulus = prev_modulus;
-                    break;
-                }
-                
-                // Otherwise, free the previous value and continue
-                free_bigint(&prev_modulus);
-                shift++;
-                
-                // Prevent infinite loops
-                if (shift > 1000) {
-                    fprintf(stderr, "[ERROR] Too many shifts in bigint_mod\n");
-                    free_bigint(&a_copy);
-                    free_bigint(&shifted_modulus);
-                    return -2; // Too many shifts
-                }
-            }
-            
-            // Subtract shifted_modulus from a_copy
-            BigInt temp;
-            temp.length = a_copy.length;
-            temp.data = (uint8_t*)calloc(temp.length, 1);
-            if (!temp.data) {
-                fprintf(stderr, "[ERROR] Memory allocation failed during subtraction\n");
-                free_bigint(&a_copy);
-                free_bigint(&shifted_modulus);
-                return -2; // Memory allocation failure
-            }
-            
-            int borrow = 0;
-            for (size_t i = 0; i < a_copy.length; i++) {
-                int diff = (int)a_copy.data[i] - borrow;
-                if (i < shifted_modulus.length) {
-                    diff -= shifted_modulus.data[i];
-                }
-                
-                if (diff < 0) {
-                    diff += 256;
-                    borrow = 1;
-                } else {
-                    borrow = 0;
-                }
-                
-                temp.data[i] = (uint8_t)diff;
-            }
-            
-            // Remove leading zeros
-            while (temp.length > 1 && temp.data[temp.length - 1] == 0) {
-                temp.length--;
-            }
-            
-            free_bigint(&a_copy);
-            free_bigint(&shifted_modulus);
-            a_copy = temp;
-            
-            iteration_count++;
-            if (iteration_count % 100 == 0) {
-                fprintf(stderr, "[DEBUG] Modular reduction iteration %d\n", iteration_count);
-            }
-            
-            if (iteration_count > MAX_ITERATIONS) {
-                fprintf(stderr, "[ERROR] Exceeded maximum iterations (%d) in bigint_mod\n", MAX_ITERATIONS);
-                free_bigint(&a_copy);
-                return -2; // Exceeded iteration limit
-            }
-        }
-    }
-    
-    fprintf(stderr, "[DEBUG] Modular reduction completed after %d iterations\n", iteration_count);
-    
-    
-    // Copy the result
-    *result = create_bigint(a_copy.data, a_copy.length);
-    
-    // Clean up
-    free_bigint(&a_copy);
-    
-    return 0;
-}
+

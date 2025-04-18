@@ -221,7 +221,8 @@ export async function generateSecretKey(
   n: Uint8Array | number[]
 ): Promise<number> {
   const module = await loadWasmModule();
-  console.log(module);
+  // Remove problematic console.log that might cause browser to hang
+  // console.log(module);
   // Convert parameters to Uint8Array if they're not already
   const nUint8 = n instanceof Uint8Array ? n : new Uint8Array(n);
 
@@ -230,7 +231,13 @@ export async function generateSecretKey(
 
   try {
     // Call the WebAssembly function
-    return module._generate_secret_key(nWasm.ptr, nWasm.length);
+    const result = module._generate_secret_key(nWasm.ptr, nWasm.length);
+
+    // Get and log the generated secret key
+    const secretKey = await getSecretKey();
+    console.log("Generated Secret Key:", formatByteArray(secretKey));
+
+    return result;
   } finally {
     // Free allocated memory
     module._free(nWasm.ptr);
@@ -249,6 +256,12 @@ export async function computeAggregatorPublicKey(
   skA: Uint8Array | number[],
   n: Uint8Array | number[]
 ): Promise<number> {
+  console.log("Starting computeAggregatorPublicKey with parameters:", {
+    h: h ? `${h.length} bytes` : "undefined",
+    skA: skA ? `${skA.length} bytes` : "undefined",
+    n: n ? `${n.length} bytes` : "undefined",
+  });
+
   const module = await loadWasmModule();
 
   // Convert parameters to Uint8Array if they're not already
@@ -256,14 +269,26 @@ export async function computeAggregatorPublicKey(
   const skAUint8 = skA instanceof Uint8Array ? skA : new Uint8Array(skA);
   const nUint8 = n instanceof Uint8Array ? n : new Uint8Array(n);
 
+  // Validate parameters before proceeding
+  if (hUint8.length === 0 || skAUint8.length === 0 || nUint8.length === 0) {
+    console.error("Invalid parameters for computeAggregatorPublicKey:", {
+      hLength: hUint8.length,
+      skALength: skAUint8.length,
+      nLength: nUint8.length,
+    });
+    return -1; // Return error code
+  }
+
   // Copy arrays to WebAssembly memory
+  console.log("Copying arrays to WebAssembly memory");
   const hWasm = copyArrayToWasm(module, hUint8);
   const skAWasm = copyArrayToWasm(module, skAUint8);
   const nWasm = copyArrayToWasm(module, nUint8);
 
   try {
     // Call the WebAssembly function
-    return module._compute_aggregator_public_key(
+    console.log("Calling _compute_aggregator_public_key WebAssembly function");
+    const result = module._compute_aggregator_public_key(
       hWasm.ptr,
       hWasm.length,
       skAWasm.ptr,
@@ -271,8 +296,11 @@ export async function computeAggregatorPublicKey(
       nWasm.ptr,
       nWasm.length
     );
+    console.log("_compute_aggregator_public_key returned:", result);
+    return result;
   } finally {
     // Free allocated memory
+    console.log("Freeing allocated memory");
     module._free(hWasm.ptr);
     module._free(skAWasm.ptr);
     module._free(nWasm.ptr);
@@ -320,11 +348,14 @@ export async function encryptVotePaillier(
 
   // Validate input parameters
   if (!vote || !h || !n) {
-    throw new Error('All encryption parameters must be provided');
+    throw new Error("All encryption parameters must be provided");
   }
 
-  if (vote instanceof Array && vote.length === 0 || vote instanceof Uint32Array && vote.length === 0) {
-    throw new Error('Vote array cannot be empty');
+  if (
+    (vote instanceof Array && vote.length === 0) ||
+    (vote instanceof Uint32Array && vote.length === 0)
+  ) {
+    throw new Error("Vote array cannot be empty");
   }
 
   // Convert parameters to Uint8Array if they're not already
@@ -334,18 +365,20 @@ export async function encryptVotePaillier(
 
   // Validate converted parameters
   if (hUint8.length === 0 || nUint8.length === 0) {
-    throw new Error('Invalid cryptographic parameters: H or N is empty');
+    throw new Error("Invalid cryptographic parameters: H or N is empty");
   }
 
   // Detailed logging of the vote array before encryption
-  console.log('=== VOTE ARRAY BEFORE ENCRYPTION ===');
-  console.log('Vote array:', Array.from(voteUint32));
-  console.log('Vote array length:', voteUint32.length);
-  console.log('Vote array format: One "1" at the selected candidate position, rest are "0"s');
-  console.log('=== ENCRYPTION PARAMETERS ===');
-  console.log('H length:', hUint8.length, 'bytes');
-  console.log('N length:', nUint8.length, 'bytes');
-  console.log('=================================');
+  console.log("=== VOTE ARRAY BEFORE ENCRYPTION ===");
+  console.log("Vote array:", Array.from(voteUint32));
+  console.log("Vote array length:", voteUint32.length);
+  console.log(
+    'Vote array format: One "1" at the selected candidate position, rest are "0"s'
+  );
+  console.log("=== ENCRYPTION PARAMETERS ===");
+  console.log("H length:", hUint8.length, "bytes");
+  console.log("N length:", nUint8.length, "bytes");
+  console.log("=================================");
 
   // Copy arrays to WebAssembly memory
   const voteWasm = copyUint32ArrayToWasm(module, voteUint32);
@@ -370,7 +403,7 @@ export async function encryptVotePaillier(
     );
 
     if (result !== 0) {
-      console.error('Encryption failed with parameters:', {
+      console.error("Encryption failed with parameters:", {
         votePtr: voteWasm.ptr,
         voteLength: voteUint32.length,
         nPtr: nWasm.ptr,
@@ -378,7 +411,7 @@ export async function encryptVotePaillier(
         hPtr: hWasm.ptr,
         hLength: hUint8.length,
         resultPtr,
-        resultLength
+        resultLength,
       });
       throw new Error(`Encryption failed with error code: ${result}`);
     }
@@ -401,16 +434,24 @@ export async function encryptVotePaillier(
 export async function getSecretKey(): Promise<Uint8Array> {
   const module = await loadWasmModule();
 
-  // Allocate memory for the result (assuming a reasonable size)
-  const resultLength = 256; // Adjust based on expected key size
+  // Allocate memory for the result (64 bytes for the secret key)
+  const resultLength = 128; // Fixed size for secret key
   const resultPtr = module._malloc(resultLength);
 
   try {
     // Call the WebAssembly function
     const keySize = module._get_secret_key(resultPtr, resultLength);
 
-    if (keySize <= 0) {
-      throw new Error(`Failed to get secret key: ${keySize}`);
+    // Check for error conditions first
+    if (keySize < 0) {
+      throw new Error(`Failed to get secret key: error code ${keySize}`);
+    }
+
+    // Validate the key size
+    if (keySize === 0 || keySize > resultLength) {
+      throw new Error(
+        `Invalid secret key size: ${keySize} bytes (expected between 1 and ${resultLength} bytes)`
+      );
     }
 
     // Copy the result back to JavaScript
@@ -495,7 +536,9 @@ export async function initCryptoParams(
   h?: Uint8Array | number[]
 ): Promise<{ n: Uint8Array; h: Uint8Array }> {
   if (!n || !h) {
-    throw new Error('Cryptographic parameters (N and H) must be provided - no default values allowed');
+    throw new Error(
+      "Cryptographic parameters (N and H) must be provided - no default values allowed"
+    );
   }
 
   // Convert parameters to Uint8Array
@@ -552,14 +595,14 @@ export async function initCryptoParams(
  */
 function hexToUint8Array(hexString: string): Uint8Array {
   // Remove '0x' prefix if present
-  hexString = hexString.replace('0x', '');
+  hexString = hexString.replace("0x", "");
   // Ensure even length
   if (hexString.length % 2 !== 0) {
-    hexString = '0' + hexString;
+    hexString = "0" + hexString;
   }
   const bytes = new Uint8Array(hexString.length / 2);
   for (let i = 0; i < hexString.length; i += 2) {
-    bytes[i/2] = parseInt(hexString.substr(i, 2), 16);
+    bytes[i / 2] = parseInt(hexString.substr(i, 2), 16);
   }
   return bytes;
 }
@@ -568,33 +611,40 @@ function hexToUint8Array(hexString: string): Uint8Array {
  * Fetch election parameters from the backend
  * @returns Object containing the fetched parameters (n, h, ska)
  */
-export async function fetchElectionParams(): Promise<{ n: Uint8Array; h: Uint8Array; ska?: Uint8Array | number[] }> {
+export async function fetchElectionParams(): Promise<{
+  n: Uint8Array;
+  h: Uint8Array;
+  ska?: Uint8Array | number[];
+}> {
   try {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    const backendUrl =
+      import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
     const response = await fetch(`${backendUrl}/api/user/params`);
     console.log(response);
-    
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch election parameters: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch election parameters: ${response.statusText}`
+      );
     }
-    
+
     const data = await response.json();
-    
+
     // Convert hex string parameters to Uint8Array
     const n = hexToUint8Array(data.N);
     const h = hexToUint8Array(data.H);
-    
+
     // SKA might be optional
     let ska: Uint8Array | undefined;
     if (data.skA) {
       ska = hexToUint8Array(data.skA);
     }
-    
+
     console.log("Successfully fetched election parameters from backend");
     console.log("N:", data.N);
     console.log("H:", data.H);
     console.log("SKA:", data.skA);
-    
+
     return { n, h, ska };
   } catch (error) {
     console.error("Error fetching election parameters:", error);
@@ -606,20 +656,55 @@ export async function fetchElectionParams(): Promise<{ n: Uint8Array; h: Uint8Ar
  * Setup the election by initializing crypto parameters and generating keys
  * @returns Object containing the initialized parameters (n, h, ska)
  */
-export async function setupElection(): Promise<{ n: Uint8Array; h: Uint8Array; ska?: Uint8Array | number[] }> {
+export async function setupElection(): Promise<{
+  n: Uint8Array;
+  h: Uint8Array;
+  ska?: Uint8Array | number[];
+}> {
   try {
     // Fetch parameters from backend - no fallback to defaults
     const params = await fetchElectionParams();
     console.log("Using election parameters from backend");
-    
+
     // Initialize crypto with fetched parameters
     await initCryptoParams(params.n, params.h);
-    
-    return params;
-  } catch (error) {
-    console.error("Failed to fetch or initialize election parameters:", error);
-    throw new Error("Election setup failed - backend parameters are required");
 
+    // Generate random SKA key
+    // const result = await generateSecretKey(params.n);
+    // if (result !== 0) {
+    //   throw new Error(`Failed to generate SKA key: ${result}`);
+    // }
+
+    // // Get the generated secret key
+    // const ska = await getSecretKey();
+    // console.log("Generated SKA key:", formatByteArray(ska));
+
+    // // Update SKA in backend
+    // const backendUrl =
+    //   import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+    // const response = await fetch(`${backendUrl}/api/user/params/ska`, {
+    //   method: "PUT",
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //   },
+    //   body: JSON.stringify({
+    //     skA: Array.from(ska)
+    //       .map((b) => b.toString(16).padStart(2, "0"))
+    //       .join(""),
+    //   }),
+    // });
+
+    // if (!response.ok) {
+    //   throw new Error(
+    //     `Failed to update SKA in backend: ${response.statusText}`
+    //   );
+    // }
+
+    // return { n: params.n, h: params.h, ska: ska };
+    return { n: params.n, h: params.h, ska: params.ska };
+  } catch (error) {
+    console.error("Failed to setup election:", error);
+    throw new Error("Election setup failed - backend parameters are required");
   }
 }
 
@@ -650,80 +735,119 @@ export function formatByteArray(array: Uint8Array | number[] | null): string {
 export async function submitVote(
   candidateId: number,
   voterAddress: string,
-  electionParams: { n: Uint8Array | number[]; h: Uint8Array | number[]; ska?: Uint8Array | number[] }
+  electionParams: {
+    n: Uint8Array | number[];
+    h: Uint8Array | number[];
+    ska?: Uint8Array | number[];
+  }
 ): Promise<any> {
+  console.log("Starting submitVote with candidateId:", candidateId);
+
   if (candidateId === null) {
     throw new Error("Please select a candidate");
   }
 
   const { n, h, ska } = electionParams;
+  console.log("Election parameters:", {
+    n: n ? `${n.length} bytes` : "undefined",
+    h: h ? `${h.length} bytes` : "undefined",
+    ska: ska ? `${ska.length} bytes` : "undefined",
+  });
+
   if (!n || !h) {
     throw new Error("Cryptographic parameters not initialized");
   }
 
   // First, we need the aggregator's secret key (skA) from the election parameters
   if (!ska) {
-    throw new Error("Aggregator's secret key (skA) is required but not provided");
-  }
-  
-  // Step 1: Generate client's secret key if not already done
-  const secretKeyResult = await generateSecretKey(n);
-  if (secretKeyResult !== 0) {
-    throw new Error(`Failed to generate client secret key: ${secretKeyResult}`);
-  }
-  
-  // Step 2: Compute the aggregator's public key (pk_A = H^sk_A)
-  const pkAResult = await computeAggregatorPublicKey(h, ska, n);
-  if (pkAResult !== 0) {
-    throw new Error(`Failed to compute aggregator public key: ${pkAResult}`);
-  }
-  
-  // Step 3: Now compute the auxiliary key (aux_i = pk_A^sk_i)
-  const auxResult = await computeAuxiliaryKey(n);
-  if (auxResult !== 0) {
-    throw new Error(`Failed to compute auxiliary key: ${auxResult}`);
+    throw new Error(
+      "Aggregator's secret key (skA) is required but not provided"
+    );
   }
 
-  // Create a vote array initialized with zeros and set the selected candidate's position to 1
-  const numCandidates = 4; // Match the number of candidates in the UI
-  const voteArray = new Uint32Array(numCandidates).fill(0);
-  voteArray[candidateId - 1] = 1; // Adjust index since candidateId is 1-based
-  
-  // Debug: Log the raw vote array before encryption
-  console.log("Raw vote array before encryption:", Array.from(voteArray));
-  
-  const encryptedVote = await encryptVotePaillier(voteArray, h, n);
-  
-  // Get auxiliary key after it's been computed
-  const auxiliaryKey = await getAuxiliaryKey();
-  
-  // Get the backend URL from environment or use default
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-  
-  // Convert encrypted vote and auxiliary key to hex format
-  const encryptedVoteHex = Array.from(encryptedVote)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-  const auxiliaryKeyHex = Array.from(auxiliaryKey)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+  try {
+    // Step 1: Generate client's secret key if not already done
+    console.log("Step 1: Generating client's secret key");
+    const secretKeyResult = await generateSecretKey(n);
+    console.log("generateSecretKey result:", secretKeyResult);
 
-  // Submit the vote to the backend
-  const response = await fetch(`${backendUrl}/api/user/vote`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      voterId: voterAddress,
-      ci: encryptedVoteHex, // Send encrypted vote as a string, not an array
-      auxi: auxiliaryKeyHex, // Send auxiliary key in hex format
-    }),
-  });
+    if (secretKeyResult !== 0) {
+      throw new Error(
+        `Failed to generate client secret key: ${secretKeyResult}`
+      );
+    }
 
-  if (!response.ok) {
-    throw new Error(`Failed to submit vote: ${response.statusText}`);
+    // Step 2: Compute the aggregator's public key (pk_A = H^sk_A)
+    console.log("Step 2: Computing aggregator's public key");
+    console.log("Parameters for computeAggregatorPublicKey:", {
+      h: h ? `${h.length} bytes` : "undefined",
+      ska: ska ? `${ska.length} bytes` : "undefined",
+      n: n ? `${n.length} bytes` : "undefined",
+    });
+
+    const aggregatorpubKeyResult = await computeAggregatorPublicKey(h, ska, n);
+    console.log("computeAggregatorPublicKey result:", aggregatorpubKeyResult);
+
+    if (aggregatorpubKeyResult !== 0) {
+      throw new Error(
+        `Failed to compute aggregator public key: ${aggregatorpubKeyResult}`
+      );
+    }
+
+    console.log("Successfully completed key generation steps");
+    return null;
+  } catch (error) {
+    console.error("Error in submitVote:", error);
+    throw error;
   }
 
-  return await response.json();
+  // // Step 3: Now compute the auxiliary key (aux_i = pk_A^sk_i)
+  // const auxResult = await computeAuxiliaryKey(n);
+  // if (auxResult !== 0) {
+  //   throw new Error(`Failed to compute auxiliary key: ${auxResult}`);
+  // }
+
+  // // Create a vote array initialized with zeros and set the selected candidate's position to 1
+  // const numCandidates = 4; // Match the number of candidates in the UI
+  // const voteArray = new Uint32Array(numCandidates).fill(0);
+  // voteArray[candidateId - 1] = 1; // Adjust index since candidateId is 1-based
+
+  // // Debug: Log the raw vote array before encryption
+  // console.log("Raw vote array before encryption:", Array.from(voteArray));
+
+  // const encryptedVote = await encryptVotePaillier(voteArray, h, n);
+
+  // // Get auxiliary key after it's been computed
+  // const auxiliaryKey = await getAuxiliaryKey();
+
+  // // Get the backend URL from environment or use default
+  // const backendUrl =
+  //   import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+
+  // // Convert encrypted vote and auxiliary key to hex format
+  // const encryptedVoteHex = Array.from(encryptedVote)
+  //   .map((b) => b.toString(16).padStart(2, "0"))
+  //   .join("");
+  // const auxiliaryKeyHex = Array.from(auxiliaryKey)
+  //   .map((b) => b.toString(16).padStart(2, "0"))
+  //   .join("");
+
+  // // Submit the vote to the backend
+  // const response = await fetch(`${backendUrl}/api/user/vote`, {
+  //   method: "POST",
+  //   headers: {
+  //     "Content-Type": "application/json",
+  //   },
+  //   body: JSON.stringify({
+  //     voterId: voterAddress,
+  //     ci: encryptedVoteHex, // Send encrypted vote as a string, not an array
+  //     auxi: auxiliaryKeyHex, // Send auxiliary key in hex format
+  //   }),
+  // });
+
+  // if (!response.ok) {
+  //   throw new Error(`Failed to submit vote: ${response.statusText}`);
+  // }
+
+  return null;
 }

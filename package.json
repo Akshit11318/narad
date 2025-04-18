@@ -4,7 +4,7 @@
   "description": "Solana voting system monorepo",
   "license": "ISC",
   "workspaces": [
-    "backend",
+    "voting-system-testing",
     "frontend"
   ],
   "scripts": {
