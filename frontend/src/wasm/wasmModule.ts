@@ -786,7 +786,6 @@ export async function submitVote(
     });
 
     const aggregatorpubKeyResult = await computeAggregatorPublicKey(h, ska, n);
-    console.log("computeAggregatorPublicKey result:", aggregatorpubKeyResult);
 
     if (aggregatorpubKeyResult !== 0) {
       throw new Error(
@@ -795,6 +794,55 @@ export async function submitVote(
     }
 
     console.log("Successfully completed key generation steps");
+    const auxResult = await computeAuxiliaryKey(n);
+    if (auxResult !== 0) {
+      throw new Error(`Failed to compute auxiliary key: ${auxResult}`);
+    }
+    console.log(
+      `Successfully completed auxiliary key computation ${auxResult}`
+    );
+    const numCandidates = 4; // Match the number of candidates in the UI
+    const voteArray = new Uint32Array(numCandidates).fill(0);
+    voteArray[candidateId - 1] = 1; // Adjust index since candidateId is 1-based
+
+    // Debug: Log the raw vote array before encryption
+    console.log("Raw vote array before encryption:", Array.from(voteArray));
+
+    const encryptedVote = await encryptVotePaillier(voteArray, h, n);
+    console.log("Encrypted vote:", encryptedVote);
+    // Get auxiliary key after it's been computed
+    const auxiliaryKey = await getAuxiliaryKey();
+    console.log("Auxiliary key:", auxiliaryKey);
+    const backendUrl =
+      import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+
+    // Convert encrypted vote and auxiliary key to hex format
+    const encryptedVoteHex = Array.from(encryptedVote)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    console.log("Encrypted vote:", encryptedVoteHex);
+    const auxiliaryKeyHex = Array.from(auxiliaryKey)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    console.log("Auxiliary key:", auxiliaryKeyHex);
+
+    // Submit the vote to the backend
+    const response = await fetch(`${backendUrl}/api/user/vote`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        voterId: voterAddress,
+        ci: encryptedVoteHex, // Send encrypted vote as a string, not an array
+        auxi: auxiliaryKeyHex, // Send auxiliary key in hex format
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to submit vote: ${response.statusText}`);
+    }
     return null;
   } catch (error) {
     console.error("Error in submitVote:", error);
@@ -802,52 +850,10 @@ export async function submitVote(
   }
 
   // // Step 3: Now compute the auxiliary key (aux_i = pk_A^sk_i)
-  // const auxResult = await computeAuxiliaryKey(n);
-  // if (auxResult !== 0) {
-  //   throw new Error(`Failed to compute auxiliary key: ${auxResult}`);
-  // }
 
   // // Create a vote array initialized with zeros and set the selected candidate's position to 1
-  // const numCandidates = 4; // Match the number of candidates in the UI
-  // const voteArray = new Uint32Array(numCandidates).fill(0);
-  // voteArray[candidateId - 1] = 1; // Adjust index since candidateId is 1-based
-
-  // // Debug: Log the raw vote array before encryption
-  // console.log("Raw vote array before encryption:", Array.from(voteArray));
-
-  // const encryptedVote = await encryptVotePaillier(voteArray, h, n);
-
-  // // Get auxiliary key after it's been computed
-  // const auxiliaryKey = await getAuxiliaryKey();
 
   // // Get the backend URL from environment or use default
-  // const backendUrl =
-  //   import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
-
-  // // Convert encrypted vote and auxiliary key to hex format
-  // const encryptedVoteHex = Array.from(encryptedVote)
-  //   .map((b) => b.toString(16).padStart(2, "0"))
-  //   .join("");
-  // const auxiliaryKeyHex = Array.from(auxiliaryKey)
-  //   .map((b) => b.toString(16).padStart(2, "0"))
-  //   .join("");
-
-  // // Submit the vote to the backend
-  // const response = await fetch(`${backendUrl}/api/user/vote`, {
-  //   method: "POST",
-  //   headers: {
-  //     "Content-Type": "application/json",
-  //   },
-  //   body: JSON.stringify({
-  //     voterId: voterAddress,
-  //     ci: encryptedVoteHex, // Send encrypted vote as a string, not an array
-  //     auxi: auxiliaryKeyHex, // Send auxiliary key in hex format
-  //   }),
-  // });
-
-  // if (!response.ok) {
-  //   throw new Error(`Failed to submit vote: ${response.statusText}`);
-  // }
 
   return null;
 }
