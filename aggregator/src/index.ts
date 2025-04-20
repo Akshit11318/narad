@@ -21,7 +21,10 @@ interface AggregatorAddon {
 // Load the native addon directly with proper typing
 let addon: AggregatorAddon;
 try {
-  addon = bindings("aggregator") as AggregatorAddon;
+  addon = bindings({
+    bindings: 'aggregator',
+    module_root: __dirname
+  }) as AggregatorAddon;
   console.log("Successfully loaded the aggregator native addon");
 } catch (error) {
   console.error("Failed to load aggregator native addon:", error);

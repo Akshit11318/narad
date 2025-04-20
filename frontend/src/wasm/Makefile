@@ -41,9 +41,8 @@ libtommath_check:
 		cp $(LIBTOMMATH_DIR)/src/libtommath.a $(LIBTOMMATH_LIB)/; \
 	fi
 
-
 # Build rule
-all: $(OUTPUT_DIR) libtommath_check $(OUTPUT)
+all: $(OUTPUT_DIR) $(OUTPUT)
 
 $(OUTPUT_DIR):
 	mkdir -p $(OUTPUT_DIR)
@@ -54,6 +53,7 @@ $(OUTPUT): $(SOURCES)
 
 # Clean rule
 clean:
-	rm -f $(OUTPUT) $(OUTPUT).wasm
+	rm -f ../../public/assets/encryption.js
+	rm -f ../../public/assets/encryption.wasm
 
 .PHONY: all clean libtommath_check

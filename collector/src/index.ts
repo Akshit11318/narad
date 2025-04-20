@@ -7,7 +7,10 @@ import {
 import bindings from "bindings";
 
 // Load the native addon directly
-const addon = bindings("collector");
+const addon = bindings({
+  bindings: 'collector',
+  module_root: process.cwd()
+});
 
 // Define the BigInt structure to match the C structure
 interface BigIntType {
