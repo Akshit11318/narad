@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include "libtommath_wrapper.h"
 
 // this is a header fie which makes the functions available for 
 // use in C++ code and compiled as C code

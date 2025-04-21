@@ -5,7 +5,9 @@
   "license": "ISC",
   "workspaces": [
     "voting-system-testing",
-    "frontend"
+    "frontend",
+    "aggregator",
+    "collector"
   ],
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
