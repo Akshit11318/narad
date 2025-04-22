@@ -79,22 +79,22 @@ set(EXPORTED_FUNCTIONS
     "_clear_crypto_params"
     "_initialize_crypto_params"
 )
+# build the comma‑separated list as before…
 string(REPLACE ";" "," EXPORTED_FUNCTIONS_STR "${EXPORTED_FUNCTIONS}")
 
-# Set Emscripten-specific linker flags
 set(EMCC_LINK_FLAGS
     "-O3"
-    "-s WASM=1"
-    "-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
-    "-s EXPORTED_FUNCTIONS=[${EXPORTED_FUNCTIONS_STR}]"
-    "-s ALLOW_MEMORY_GROWTH=1"
-    "-s MODULARIZE=1"
-    "-s EXPORT_ES6=0"
-    "-s EXPORT_NAME='createEncryptionModule'"
-    "-s ENVIRONMENT='web,worker'")
-    
+    "-sWASM=1"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+    "-sEXPORTED_FUNCTIONS=[${EXPORTED_FUNCTIONS_STR}]"
+    "-sALLOW_MEMORY_GROWTH=1"
+    "-sMODULARIZE=1"
+    "-sEXPORT_ES6=0"
+    "-sEXPORT_NAME=\"createEncryptionModule\""
+    "-sENVIRONMENT=web,worker"
+)
 
-# Apply link flags
+message(STATUS "EMCC link flags = ${EMCC_LINK_FLAGS}")
 target_link_options(encryption PRIVATE ${EMCC_LINK_FLAGS})
 
 # Set output name and properties for Emscripten target
