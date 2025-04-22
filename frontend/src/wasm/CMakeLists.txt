@@ -5,15 +5,12 @@ cmake_minimum_required(VERSION 3.15)
 # This file should only be processed if the Emscripten toolchain is active
 if(NOT CMAKE_TOOLCHAIN_FILE MATCHES ".*Emscripten.cmake")
     message(STATUS "Skipping WASM build: Emscripten toolchain not active.")
-    message(STATUS "To build WASM module, run: cmake .. -DCMAKE_TOOLCHAIN_FILE=/path/to/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake")
+    message(STATUS "To build WASM module, run: cmake .. -DCMAKE_TOOLCHAIN_FILE=$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake")
     return()
 endif()
 
 # Find Emscripten using our custom module
 find_package(Emscripten QUIET)
-
-# Comment out the EmscriptenTest include since it's not available or needed here
-# include(EmscriptenTest)
 
 # Verify Emscripten is properly configured
 if(NOT EMSCRIPTEN AND NOT DEFINED ENV{EMSCRIPTEN})
@@ -32,12 +29,6 @@ endif()
 if(Emscripten_FOUND)
     message(STATUS "Using Emscripten version ${Emscripten_VERSION}")
     message(STATUS "Emscripten root path: ${Emscripten_ROOT_PATH}")
-    
-    # Comment out the environment verification since it's not defined
-    # verify_emscripten_environment()
-    # if(NOT EMSCRIPTEN_ENV_VALID)
-    #     message(FATAL_ERROR "Emscripten environment verification failed. Please check your Emscripten installation.")
-    # endif()
 endif()
 
 # Allow user to specify custom Emscripten paths
@@ -46,9 +37,6 @@ if(DEFINED EMSCRIPTEN_ROOT_DIR)
 endif()
 
 project(frontend_wasm C)
-
-# Tell CMake to use our custom FindCURL module
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 # Define source files
 set(WASM_SOURCES
@@ -64,14 +52,14 @@ add_executable(encryption ${WASM_SOURCES})
 # Include directories
 target_include_directories(encryption PRIVATE
     ${CMAKE_SOURCE_DIR}/common/bigint_lib # Access bigint.h
-    # libtommath include is handled via bigint_lib dependency
+    ${CMAKE_CURRENT_SOURCE_DIR} # For local header files
 )
 
 # Link against the common bigint library
 # This implicitly links against tommath as well
 target_link_libraries(encryption PRIVATE bigint_lib)
 
-# Define exported functions (from Makefile)
+# Define exported functions
 set(EXPORTED_FUNCTIONS
     "_malloc"
     "_free"
@@ -93,7 +81,7 @@ set(EXPORTED_FUNCTIONS
 )
 string(REPLACE ";" "," EXPORTED_FUNCTIONS_STR "${EXPORTED_FUNCTIONS}")
 
-# Set Emscripten-specific linker flags (from Makefile)
+# Set Emscripten-specific linker flags
 set(EMCC_LINK_FLAGS
     "-O3"
     "-s WASM=1"
@@ -103,9 +91,8 @@ set(EMCC_LINK_FLAGS
     "-s MODULARIZE=1"
     "-s EXPORT_ES6=0"
     "-s EXPORT_NAME='createEncryptionModule'"
-    # Output path needs careful handling
-    # "-o ${CMAKE_SOURCE_DIR}/frontend/public/assets/encryption.js" # Option 1: Hardcoded path
-)
+    "-s ENVIRONMENT='web,worker'")
+    
 
 # Apply link flags
 target_link_options(encryption PRIVATE ${EMCC_LINK_FLAGS})
@@ -120,7 +107,6 @@ set_target_properties(encryption PROPERTIES
 # Ensure bigint_lib is built first
 add_dependencies(encryption bigint_lib)
 
-# --- Post-build step to copy files --- 
 # Define the destination directory relative to the root source directory
 set(WASM_DESTINATION_DIR "${CMAKE_SOURCE_DIR}/frontend/public/assets")
 

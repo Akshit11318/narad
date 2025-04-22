@@ -1,9 +1,6 @@
-# Root CMakeLists.txt for the Voting System
-
 cmake_minimum_required(VERSION 3.15)
 
-# Add cmake modules path for custom Find*.cmake modules
-# Make sure this is set before the project() command
+# Set custom module path before project()
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules" ${CMAKE_MODULE_PATH})
 
 project(VotingSystem LANGUAGES C CXX)
@@ -17,41 +14,15 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# Add global include directories
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/common/include  # Common project includes
-)
-
-# When using Emscripten, add Emscripten system includes
-if(EMSCRIPTEN)
-  if(DEFINED ENV{EMSDK})
-    include_directories(
-      $ENV{EMSDK}/upstream/emscripten/cache/sysroot/include
-      $ENV{EMSDK}/upstream/emscripten/system/include
-    )
-    message(STATUS "Added Emscripten include directories from EMSDK environment variable")
-  endif()
-  
-  if(DEFINED EMSCRIPTEN_ROOT_PATH)
-    include_directories(
-      ${EMSCRIPTEN_ROOT_PATH}/upstream/emscripten/cache/sysroot/include
-      ${EMSCRIPTEN_ROOT_PATH}/upstream/emscripten/system/include
-    )
-    message(STATUS "Added Emscripten include directories from EMSCRIPTEN_ROOT_PATH")
-  endif()
-  
-  # Try to find emcc and use its location to determine includes
-  find_program(EMCC_PATH emcc)
-  if(EMCC_PATH)
-    get_filename_component(EMCC_DIR "${EMCC_PATH}" DIRECTORY)
-    include_directories(
-      ${EMCC_DIR}/../include
-      ${EMCC_DIR}/system/include
-      ${EMCC_DIR}/cache/sysroot/include
-    )
-    message(STATUS "Added Emscripten include directories based on emcc location: ${EMCC_DIR}")
-  endif()
+# Detect cmake-js
+if(DEFINED CMAKE_JS_VERSION)
+    message(STATUS "Building with cmake-js version ${CMAKE_JS_VERSION}")
 endif()
+
+# Global include directories
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/common/include
+)
 
 # --- Subdirectories ---
 
@@ -61,13 +32,13 @@ add_subdirectory(deps)
 # Add common bigint library
 add_subdirectory(common/bigint_lib)
 
-# Add aggregator (Node Addon)
-add_subdirectory(aggregator)
-
-# Add collector (Node Addon)
-# Only include if not building with Emscripten
+# Add aggregator (Node Addon) - skip for Emscripten
 if(NOT EMSCRIPTEN)
-    # Check if CURL is available
+    add_subdirectory(aggregator)
+endif()
+
+# Add collector (Node Addon) - skip for Emscripten
+if(NOT EMSCRIPTEN)
     include(FindCURL)
     find_package(CURL QUIET)
     
@@ -80,9 +51,7 @@ if(NOT EMSCRIPTEN)
 endif()
 
 # Add frontend WASM module
-# Check if Emscripten toolchain is being used
 if(CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES ".*Emscripten.cmake")
-    # Try to find Emscripten using our custom module
     find_package(Emscripten QUIET)
     
     if(Emscripten_FOUND)
@@ -94,11 +63,7 @@ if(CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES ".*Emscripten.cmake")
     endif()
 else()
     message(STATUS "Emscripten toolchain not detected. Skipping WASM target.")
-    message(STATUS "To build WASM module, run: cmake .. -DCMAKE_TOOLCHAIN_FILE=/path/to/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake")
+    message(STATUS "To build WASM module, run: cmake .. -DCMAKE_TOOLCHAIN_FILE=$EMSDK/upstream/emscripten/cmake/Toolchain.cmake")
 endif()
-
-# --- Optional: Add testing subdirectory ---
-# enable_testing()
-# add_subdirectory(tests) # If you have CMake-based tests
 
 message(STATUS "Root CMake configuration finished.")

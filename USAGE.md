@@ -95,7 +95,7 @@ mkdir -p build_wasm
 cd build_wasm
 
 # Configure the project with CMake using Emscripten toolchain
-cmake .. -DCMAKE_TOOLCHAIN_FILE=/home/akshit/emsdk/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
 
 # Build only the WASM module
 cmake --build . --target encryption
@@ -147,10 +147,12 @@ cmake --build . --target bigint_lib
 1. **Missing Node.js headers**: Ensure Node.js development files are installed and findable by CMake.
 
 2. **Missing libcurl**: Install libcurl development files:
+
    - On Ubuntu/Debian: `sudo apt-get install libcurl4-openssl-dev`
    - On Windows: Consider using vcpkg or pre-built binaries
 
 3. **Emscripten not detected**: Ensure you've properly activated the Emscripten environment before running CMake for WASM builds.
+
    - Verify activation with: `emcc --version`
    - Check if EMSDK environment variable is set: `echo $EMSDK` (Linux/macOS) or `echo %EMSDK%` (Windows)
    - Run the included test script: `cmake -P cmake/modules/test_emscripten.cmake`
@@ -158,23 +160,27 @@ cmake --build . --target bigint_lib
 4. **Build errors related to libtommath**: The project uses libtommath for big integer operations. Ensure it's properly set up in the deps directory.
 
 - If you encounter PIC-related linking errors like:
-     ```
-     relocation R_X86_64_PC32 against symbol 'MP_MUL_KARATSUBA_CUTOFF' can not be used when making a shared object; recompile with -fPIC
-     ```
-     Clean your build and reconfigure with:
-     ```bash
-     rm -rf build
-     mkdir build && cd build
-     cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-     cmake --build .
-     ```
 
-   After building, you can use the deployment script to copy all built files to their proper locations:
-   ```bash
-   ./scripts/deploy_builds.sh
-   ```
+  ```
+  relocation R_X86_64_PC32 against symbol 'MP_MUL_KARATSUBA_CUTOFF' can not be used when making a shared object; recompile with -fPIC
+  ```
 
-5. **WASM module build failures**: 
+  Clean your build and reconfigure with:
+
+  ```bash
+  rm -rf build
+  mkdir build && cd build
+  cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+  cmake --build .
+  ```
+
+  After building, you can use the deployment script to copy all built files to their proper locations:
+
+  ```bash
+  ./scripts/deploy_builds.sh
+  ```
+
+5. **WASM module build failures**:
    - Ensure you're using a compatible version of Emscripten (2.0.0 or higher recommended)
    - Check that the Emscripten toolchain file path is correct
    - Verify that all Emscripten tools are available in your PATH
@@ -223,3 +229,14 @@ To install the built libraries to a custom location:
 cmake .. -DCMAKE_INSTALL_PREFIX=/custom/install/path
 cmake --build . --target install
 ```
+
+##
+
+create build-wasm
+inside it run
+
+emcmake cmake ..
+
+and then
+
+cmake --build .

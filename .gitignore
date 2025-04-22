@@ -17,3 +17,4 @@ deps/libtommath
 build
 scripts
 .vscode
+build-wasm
