@@ -1,76 +1,128 @@
 # Collector Module
 
-This module implements the secure aggregation protocol for the voting system. It handles the collection and aggregation of auxiliary values from users, performing cryptographic operations to compute the final auxiliary value that will be sent to the aggregator.
-
 ## Overview
 
-The collector module is responsible for:
-- Collecting auxiliary values from individual voters in real-time
-- Securely aggregating these values using modular multiplication
-- Computing the final auxiliary value for the voting system
-- Interfacing with the backend server to fetch election parameters and push results
+The Collector module is a critical component of the secure voting system that implements the secure aggregation protocol. It handles the collection and aggregation of auxiliary values from users, performing cryptographic operations to compute the final auxiliary value that will be sent to the aggregator.
 
-## Key Components
+## Features
 
-- **Auxiliary Value Processing**: Computes the final auxiliary value from individual user contributions
-- **Cryptographic Operations**: Implements modular exponentiation and multiplication for secure aggregation
-  - All modular operations require a valid modulus (n²) value to be provided
-  - The system verifies election parameters to ensure proper modulus values are available
-- **HTTP Client**: Handles communication with the backend server for parameter fetching and result submission using libcurl
+- Collection of auxiliary values from individual voters
+- Secure aggregation using modular multiplication
+- Real-time processing of auxiliary values
+- Computation of the final auxiliary value for the voting system
 
-## Building and Running
+## Mathematical Background
+
+The collector module is part of a secure voting protocol that uses homomorphic encryption. It specifically handles the collection phase where auxiliary values from users are combined to create a final auxiliary value that will be used by the aggregator to decrypt the sum of votes without revealing individual votes.
+
+Key operations include:
+
+1. **Modular Multiplication**: Computes (a * b) mod modulus for combining auxiliary values
+2. **Secure Aggregation**: Combines multiple auxiliary values while preserving privacy
+
+## Building the Project
 
 ### Prerequisites
 
-- C compiler (GCC recommended)
-- Make build system
-- Standard C libraries
+- CMake (version 3.15 or higher)
+- C/C++ compiler (GCC, Clang, or MSVC)
+- Node.js and npm (for the Node.js interface)
 - libcurl development package (for HTTP requests)
 
-### Compilation
+### Build Instructions
 
-1. Navigate to the collector directory:
-   ```bash
-   cd collector
-   ```
+```bash
+# Clone the repository
+# Navigate to the project root directory
+cd votingSys
 
-2. Build the module using Make:
-   ```bash
-   make
-   ```
+# Create a build directory and navigate to it
+mkdir -p build
+cd build
 
-   This will compile all source files, create the executable in the `build` directory, and automatically remove the intermediate `.o` files.
+# Configure the project with CMake
+cmake ..
+
+# Build the project
+cmake --build .
+
+# Alternatively, to build just the collector module
+cmake --build . --target collector
+```
 
 ### Running the Demo
 
-After successful compilation, run the demo program from the build directory:
 ```bash
-./build/collector_demo
+# From the build directory
+./bin/collector_demo
 ```
 
-Alternatively, you can run it directly from the collector directory:
-```bash
-./build/collector_demo
+## Implementation Details
+
+### Files
+
+- `collector.h` - Header file defining the API and data structures for the collector module
+- `collector.c` - Implementation of the collector functions and state management
+- `bigint_ops.h` - Header file for big integer operations used in cryptographic calculations
+- `bigint_ops.c` - Implementation of big integer operations for cryptographic functions
+- `main.c` - Demo application showing usage of the collector module
+- `CMakeLists.txt` - CMake build configuration file
+- `src/binding.cpp` - C++ bindings for Node.js integration
+- `src/api.ts` - TypeScript API for interacting with the C++ bindings
+- `src/index.ts` - Main entry point for the Node.js interface
+
+### Data Structures
+
+```c
+// Structure to hold large integers for cryptographic operations
+typedef struct {
+    uint8_t* data;  // Pointer to the big integer data
+    size_t length;  // Length of the data in bytes
+} BigInt;
+
+// Structure to hold election parameters
+typedef struct {
+    BigInt N;        // The modulus N = p*q
+    BigInt N_squared; // N^2
+    BigInt H;        // The hash function output in Z_N^2*
+} ElectionParams;
 ```
 
-The demo simulates:
-- Fetching election parameters from the backend server via HTTP
-- Collecting and processing auxiliary values from voters
-- Computing the final auxiliary value
-- Submitting the final auxiliary value to the server
+## Node.js Interface
 
-### API Endpoints
+The collector module includes a Node.js interface that allows it to be used from JavaScript/TypeScript applications.
 
-The collector communicates with the backend server through the following endpoints:
+### Setup
 
-- `GET /api/election/params` - Fetch election parameters
-- `GET /api/auxiliary/values` - Fetch auxiliary values from voters
-- `POST /api/auxiliary/final` - Submit final auxiliary value
+```bash
+# Install Node.js dependencies
+cd collector
+npm install
 
-The server is expected to run on `http://localhost:3000` by default.
-- Processing auxiliary values from multiple users
-- Computing and displaying the running product
-- Pushing the final auxiliary value to the blockchain
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+### Usage
+
+```bash
+# Build TypeScript code
+npm run build
+
+# Run the collector
+npm start
+
+# Development mode
+npm run dev
+```
+
+### Features
+
+- Fetches election parameters from the backend server
+- Collects and processes auxiliary values from voters
+- Computes the final auxiliary value
+- Submits the final auxiliary value to the aggregator
 
 ## Security Considerations
 
@@ -79,18 +131,14 @@ The server is expected to run on `http://localhost:3000` by default.
 - The module is designed to potentially run within a secure enclave
 - No sensitive information is logged or exposed
 
-## Files
-
-- `collector.h/c`: Core collector functionality and state management
-- `bigint_ops.h/c`: Big integer operations for cryptographic calculations
-- `json_utils.h/c`: Functions for parsing JSON data and converting between hex strings and BigInt
-- `http_client.h/c`: Interface with the backend server
-- `main.c`: Demo program showing usage of the collector module
-
 ## Error Handling
 
 The module implements comprehensive error checking:
 - All functions return 0 on success and non-zero on failure
 - Memory allocation failures are properly handled
 - Invalid parameters are detected and reported
-- Blockchain communication errors are properly propagated
+- Communication errors are properly propagated
+
+## License
+
+This project is part of the VotingSys framework.

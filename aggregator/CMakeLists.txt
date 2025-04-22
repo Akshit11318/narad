@@ -4,8 +4,23 @@ cmake_minimum_required(VERSION 3.15)
 
 project(aggregator_addon C CXX)
 
-# Find Node.js development files (headers and libraries)
-find_package(NodeJS REQUIRED)
+# Find NodeJS using our custom module
+# Allow user to manually specify include paths if needed
+if(DEFINED NodeJS_INCLUDE_DIRS_MANUAL)
+    message(STATUS "Using manually specified NodeJS include dirs: ${NodeJS_INCLUDE_DIRS_MANUAL}")
+    set(NodeJS_INCLUDE_DIRS ${NodeJS_INCLUDE_DIRS_MANUAL})
+    set(NodeJS_FOUND TRUE)
+else()
+    find_package(NodeJS REQUIRED)
+endif()
+
+# Debug output
+message(STATUS "NodeJS_INCLUDE_DIRS = ${NodeJS_INCLUDE_DIRS}")
+
+# Check if NodeJS was found
+if(NOT NodeJS_FOUND)
+    message(FATAL_ERROR "Node.js development files not found. Please install Node.js and try again.")
+endif()
 
 # Include node-addon-api headers
 # Ensure node-addon-api is installed via npm install in this directory
@@ -33,6 +48,13 @@ target_compile_definitions(aggregator PRIVATE
 target_compile_options(aggregator PRIVATE
     $<$<COMPILE_LANGUAGE:C>:-Wall;-Wextra;-O3>
     $<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wextra;-O3>
+)
+
+# Make sure to include NodeJS headers
+target_include_directories(aggregator PRIVATE
+    ${NodeJS_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/node_modules/node-addon-api
 )
 
 # Link against the common bigint library and Node.js library

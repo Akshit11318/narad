@@ -1,5 +1,3 @@
-emcc
-
 # Secure Vote Aggregator Module
 
 ## Overview
@@ -23,52 +21,55 @@ Key components of the mathematical protocol:
 2. **Modular Multiplication**: Computes (a \* b) mod modulus
 3. **Modular Inverse**: Finds the multiplicative inverse of a number in a modular field
 
-## Usage
+## Building the Project
 
-### Building the Project
+### Prerequisites
+
+- CMake (version 3.15 or higher)
+- C/C++ compiler (GCC, Clang, or MSVC)
+- Node.js and npm (for the Node.js interface)
+
+### Build Instructions
 
 ```bash
 # Clone the repository
-# Navigate to the aggregator directory
-cd aggregator
+# Navigate to the project root directory
+cd votingSys
+
+# Create a build directory and navigate to it
+mkdir -p build
+cd build
+
+# Configure the project with CMake
+cmake ..
 
 # Build the project
-make
+cmake --build .
 
-# Run the demo
-./build/aggregator_demo
-
-# Clean build files
-make clean
+# Alternatively, to build just the aggregator module
+cmake --build . --target aggregator
 ```
 
-### Integration with Other Components
+### Running the Demo
 
-The aggregator module is designed to work with the collector module, which provides the auxiliary value needed for secure aggregation.
-
-### API Overview
-
-```c
-// Initialize the aggregator with parameters
-int aggregator_init(AggregatorParams* params, const BigInt* N, const BigInt* H, const BigInt* sk_A);
-
-// Aggregate votes in a single operation
-int aggregate_votes(const BigInt* ciphertexts, size_t count, const BigInt* aux,
-                    const AggregatorParams* params, BigInt* sum, BigInt* average);
-
-// Clean up resources
-int aggregator_cleanup(AggregatorParams* params);
+```bash
+# From the build directory
+./bin/aggregator_demo
 ```
 
 ## Implementation Details
 
 ### Files
 
-- `aggregator.h` - Header file defining the API
-- `aggregator.c` - Implementation of the aggregation functions
-- `bigint_ops.h` - Header file for big integer operations
-- `bigint_ops.c` - Implementation of cryptographic operations
-- `main.c` - Demo application showing usage
+- `aggregator.h` - Header file defining the API and data structures for the aggregator module
+- `aggregator.c` - Implementation of the aggregation functions and cryptographic operations
+- `bigint_ops.h` - Header file for big integer operations used in cryptographic calculations
+- `bigint_ops.c` - Implementation of big integer operations for cryptographic functions
+- `main.c` - Demo application showing usage of the aggregator module
+- `CMakeLists.txt` - CMake build configuration file
+- `src/binding.cpp` - C++ bindings for Node.js integration
+- `src/api.ts` - TypeScript API for interacting with the C++ bindings
+- `src/index.ts` - Main entry point for the Node.js interface
 
 ### Data Structures
 
@@ -87,8 +88,45 @@ typedef struct {
     BigInt sk_A;     // Aggregator's secret key
     BigInt sk_A_mod_N; // sk_A mod N
     BigInt sk_A_inv;  // Inverse of sk_A mod N
+    BigInt running_product; // Running product of ciphertexts
 } AggregatorParams;
 ```
+
+## Node.js Interface
+
+The aggregator module includes a Node.js interface that allows it to be used from JavaScript/TypeScript applications.
+
+### Setup
+
+```bash
+# Install Node.js dependencies
+cd aggregator
+npm install
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+### Usage
+
+```bash
+# Build TypeScript code
+npm run build
+
+# Run the aggregator
+npm start
+
+# Development mode
+npm run dev
+```
+
+### Features
+
+- Fetches encrypted vote ciphertexts via API
+- Processes each ciphertext using the C functions
+- Aggregates votes to produce a final tally
+- Handles conversion between TypeScript and C data types
 
 ## Security Considerations
 
@@ -103,49 +141,6 @@ typedef struct {
 - Implementation of more sophisticated modular reduction algorithms
 - Support for multi-threading to improve performance with large datasets
 - Enhanced error handling and reporting
-
-## Node.js Interface
-
-A TypeScript/Node.js interface has been added to allow calling the C functions through FFI (Foreign Function Interface). This interface enables the aggregator to work independently from the browser-based frontend.
-
-### Setup
-
-```bash
-# Install Node.js dependencies
-npm install
-# or
-yarn install
-
-# Configure environment variables
-cp .env.example .env
-# Edit .env with your configuration
-```
-
-### Usage
-
-```bash
-# Build TypeScript code
-npm run build
-# or
-yarn build
-
-# Run the aggregator
-npm start
-# or
-yarn start
-
-# Development mode
-npm run dev
-# or
-yarn dev
-```
-
-### Features
-
-- Fetches encrypted vote ciphertexts via API
-- Processes each ciphertext using the C functions
-- Aggregates votes to produce a final tally
-- Handles conversion between TypeScript and C data types
 
 ## License
 
