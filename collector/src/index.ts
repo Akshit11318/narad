@@ -5,13 +5,19 @@ import {
   submitAuxiliaryProduct,
 } from "./api";
 import bindings from "bindings";
+import path from "path";
 
 // Load the native addon directly
-const addon = bindings({
-  bindings: 'collector',
-  module_root: process.cwd()
-});
-
+const addonPath = path.resolve(
+  __dirname,
+  "..",
+  "build",
+  "build",
+  "Release",
+  "collector.node"
+);
+// Load the native addon directly
+const addon = require(addonPath);
 // Define the BigInt structure to match the C structure
 interface BigIntType {
   data: Buffer;
@@ -56,7 +62,7 @@ async function processAuxiliaryValues(
 ): Promise<BigIntType> {
   // Validate input
   if (!Array.isArray(auxiliaryValues) || auxiliaryValues.length === 0) {
-    throw new Error('Invalid or empty auxiliary values array');
+    throw new Error("Invalid or empty auxiliary values array");
   }
 
   // Reset the auxiliary product
@@ -73,45 +79,62 @@ async function processAuxiliaryValues(
 
   try {
     for (const auxHex of auxiliaryValues) {
-      if (!auxHex || typeof auxHex !== 'string') {
+      if (!auxHex || typeof auxHex !== "string") {
         throw new Error(`Invalid auxiliary value at index ${processedCount}`);
       }
 
-      console.log(`[*] Processing auxiliary value ${processedCount + 1}/${totalValues}: ${auxHex.substring(0, 10)}...`);
-      
+      console.log(
+        `[*] Processing auxiliary value ${
+          processedCount + 1
+        }/${totalValues}: ${auxHex.substring(0, 10)}...`
+      );
+
       try {
         // Set a timeout to detect potential infinite loops or hangs
         const timeoutMs = 30000; // 30 seconds timeout
         let timedOut = false;
-        
+
         const timeoutId = setTimeout(() => {
           timedOut = true;
-          console.error(`[!] Processing auxiliary value timed out after ${timeoutMs}ms`);
+          console.error(
+            `[!] Processing auxiliary value timed out after ${timeoutMs}ms`
+          );
         }, timeoutMs);
-        
+
         const aux = addon.createBigIntFromHex(auxHex);
         console.log(`[*] Created BigInt from hex, now processing...`);
-        
+
         const result = addon.processAuxiliaryValue(aux);
-        
+
         // Clear the timeout since processing completed
         clearTimeout(timeoutId);
-        
+
         if (timedOut) {
-          throw new Error(`Processing auxiliary value timed out after ${timeoutMs}ms`);
+          throw new Error(
+            `Processing auxiliary value timed out after ${timeoutMs}ms`
+          );
         }
 
         if (result !== 0) {
-          throw new Error(`Failed to process auxiliary value at index ${processedCount}: ${result}`);
+          throw new Error(
+            `Failed to process auxiliary value at index ${processedCount}: ${result}`
+          );
         }
       } catch (auxError) {
-        console.error(`[!] Error processing auxiliary value ${processedCount + 1}/${totalValues}:`, auxError);
+        console.error(
+          `[!] Error processing auxiliary value ${
+            processedCount + 1
+          }/${totalValues}:`,
+          auxError
+        );
         throw auxError;
       }
-      
+
       processedCount++;
       if (processedCount % 10 === 0 || processedCount === totalValues) {
-        console.log(`[*] Processed ${processedCount}/${totalValues} auxiliary values`);
+        console.log(
+          `[*] Processed ${processedCount}/${totalValues} auxiliary values`
+        );
       }
     }
 
@@ -125,7 +148,10 @@ async function processAuxiliaryValues(
 
     return product;
   } catch (error) {
-    console.error(`[!] Error during auxiliary value processing at count ${processedCount}/${totalValues}:`, error);
+    console.error(
+      `[!] Error during auxiliary value processing at count ${processedCount}/${totalValues}:`,
+      error
+    );
     throw error;
   }
 }
@@ -145,18 +171,22 @@ async function runCollector() {
     // Initialize the collector
     console.log(`[*] Initializing collector...`);
     const initResult = initializeCollector(N, H);
-    console.log(`[*] Collector initialized successfully with result: ${initResult}`);
+    console.log(
+      `[*] Collector initialized successfully with result: ${initResult}`
+    );
 
     // Fetch auxiliary values from the backend
     console.log(`[*] Fetching auxiliary values...`);
     const auxiliaryValues = await fetchAuxiliaryValues();
-    
+
     if (!auxiliaryValues || auxiliaryValues.length === 0) {
-      throw new Error('No auxiliary values received from the backend');
+      throw new Error("No auxiliary values received from the backend");
     }
-    
-    console.log(`[*] Successfully fetched ${auxiliaryValues.length} auxiliary values`);
-    
+
+    console.log(
+      `[*] Successfully fetched ${auxiliaryValues.length} auxiliary values`
+    );
+
     // Process auxiliary values and get their product
     console.log(`[*] Processing ${auxiliaryValues.length} auxiliary values...`);
     const product = await processAuxiliaryValues(auxiliaryValues);
@@ -164,7 +194,12 @@ async function runCollector() {
 
     // Convert BigInt to hex string for submission
     const productHex = Buffer.from(product.data).toString("hex");
-    console.log(`[*] Product (hex): ${productHex.substring(0, 20)}...${productHex.substring(productHex.length - 20)}`);
+    console.log(
+      `[*] Product (hex): ${productHex.substring(
+        0,
+        20
+      )}...${productHex.substring(productHex.length - 20)}`
+    );
 
     // Submit the product to the backend
     console.log(`[*] Submitting auxiliary product to backend...`);
@@ -201,8 +236,10 @@ if (require.main === module) {
   console.log(`[*] ====== Collector Starting ======`);
   console.log(`[*] Node.js version: ${process.version}`);
   console.log(`[*] Current working directory: ${process.cwd()}`);
-  console.log(`[*] Connecting to API: ${process.env.API_URL || "http://localhost:3000"}`);
-  
+  console.log(
+    `[*] Connecting to API: ${process.env.API_URL || "http://localhost:3000"}`
+  );
+
   runCollector()
     .then((result) => {
       console.log("[*] ====== Collector Process Completed Successfully ======");

@@ -9,8 +9,6 @@ int aggregator_init(AggregatorParams* params, const BigInt* N, const BigInt* H, 
         return -1; // Invalid parameters
     }
     
-
-
     fprintf(stderr, "[DEBUG] Starting aggregator initialization\n");
     
     // Validate parameters
@@ -313,14 +311,17 @@ int divide_out_mask(const BigInt* P, const BigInt* aux,
 
 int recover_sum(const BigInt* P_prime, const AggregatorParams* params, BigInt* result) {
     if (!P_prime || !params || !result) {
+        fprintf(stderr, "[ERROR] recover_sum: Invalid parameters\n");
         return -1; // Invalid parameters
     }
     
-    // Calculate P' - 1
-    // For simplicity, we'll just subtract 1 from the first byte
-    // In a real implementation, this would be a proper big integer subtraction
+    fprintf(stderr, "[DEBUG] Calculating P' - 1\n");
+    
+    // Step 1: Calculate P' - 1
+    // Proper big integer subtraction with borrow propagation
     uint8_t* p_minus_1_data = (uint8_t*)malloc(P_prime->length);
     if (!p_minus_1_data) {
+        fprintf(stderr, "[ERROR] Failed to allocate memory for P' - 1\n");
         return -2; // Memory allocation failed
     }
     
@@ -342,28 +343,41 @@ int recover_sum(const BigInt* P_prime, const AggregatorParams* params, BigInt* r
     BigInt P_minus_1 = create_bigint(p_minus_1_data, P_prime->length);
     free(p_minus_1_data);
     
-    // Divide by N
-    // For simplicity, we'll just create a placeholder result
-    // In a real implementation, this would be a proper big integer division
-    BigInt div_by_N;
-    div_by_N.data = (uint8_t*)malloc(P_minus_1.length);
-    if (!div_by_N.data) {
+    fprintf(stderr, "[DEBUG] Dividing by N\n");
+    
+    // Step 2: Divide by N
+    // In the Paillier cryptosystem, division by N in Z_N^2 is equivalent to
+    // right-shifting the representation by the bit length of N
+    BigInt div_result;
+    BigInt remainder; // Required by bigint_divide function
+    int div_status = bigint_divide(&P_minus_1, &params->N, &div_result, &remainder);
+    
+    if (div_status != 0) {
+        fprintf(stderr, "[ERROR] Failed to divide by N: %d\n", div_status);
         free_bigint(&P_minus_1);
-        return -3; // Memory allocation failed
+        return -3;
     }
     
-    // Copy the first bytes as a simple division approximation
-    memcpy(div_by_N.data, P_minus_1.data, P_minus_1.length);
-    div_by_N.length = P_minus_1.length;
+    // Clean up the remainder as we don't need it
+    free_bigint(&remainder);
     
-    // Multiply by (sk_A mod N)^-1 mod N
-    int ret = modular_multiplication(&div_by_N, &params->sk_A_inv, &params->N, result);
+    fprintf(stderr, "[DEBUG] Multiplying by modular inverse of sk_A\n");
+    
+    // Step 3: Multiply by (sk_A mod N)^-1 mod N
+    // This gives us the sum of all votes
+    int mult_status = modular_multiplication(&div_result, &params->sk_A_inv, &params->N, result);
     
     // Clean up
     free_bigint(&P_minus_1);
-    free_bigint(&div_by_N);
+    free_bigint(&div_result);
     
-    return ret;
+    if (mult_status != 0) {
+        fprintf(stderr, "[ERROR] Failed to multiply by modular inverse: %d\n", mult_status);
+        return -4;
+    }
+    
+    fprintf(stderr, "[DEBUG] Sum recovery completed successfully\n");
+    return 0;
 }
 
 int aggregate_votes_from_running_product(const BigInt* aux, AggregatorParams* params, BigInt* sum) {
@@ -372,40 +386,62 @@ int aggregate_votes_from_running_product(const BigInt* aux, AggregatorParams* pa
         return -1;
     }
     
-    fprintf(stderr, "[DEBUG] Setting up result BigInt\n");
-    // Initialize the result
-    sum->data = NULL;
-    sum->length = 0;
+    fprintf(stderr, "[DEBUG] Starting vote aggregation process\n");
     
-    fprintf(stderr, "[DEBUG] Creating dummy result for testing\n");
-    
-    // For now, let's return a dummy result to test if the function completes
-    sum->length = 8;  // 64 bits / 8 bits per byte
-    sum->data = (uint8_t*)calloc(sum->length, 1);
-    if (!sum->data) {
-        fprintf(stderr, "[ERROR] Failed to allocate memory for result\n");
+    // Step 1: Get the running product (product of all ciphertexts)
+    BigInt product;
+    int status = get_running_product(params, &product);
+    if (status != 0) {
+        fprintf(stderr, "[ERROR] Failed to get running product: %d\n", status);
         return -2;
     }
     
-    // Set some example values (e.g., representing a vote count of 42)
-    sum->data[0] = 42;  // Vote count for first candidate
-    sum->data[1] = 30;  // Vote count for second candidate
-    sum->data[2] = 15;  // Vote count for third candidate
-    sum->data[3] = 7;   // Vote count for fourth candidate
+    // Step 2: Raise the product to sk_A
+    fprintf(stderr, "[DEBUG] Raising product to sk_A\n");
+    BigInt P;
+    status = raise_to_sk_A(&product, params, &P);
+    free_bigint(&product); // Free the intermediate result
     
-    fprintf(stderr, "[DEBUG] aggregate_votes_from_running_product completed successfully\n");
+    if (status != 0) {
+        fprintf(stderr, "[ERROR] Failed to raise product to sk_A: %d\n", status);
+        return -3;
+    }
+    
+    // Step 3: Divide out the mask using the auxiliary value
+    fprintf(stderr, "[DEBUG] Dividing out the mask\n");
+    BigInt P_prime;
+    status = divide_out_mask(&P, aux, params, &P_prime);
+    free_bigint(&P); // Free the intermediate result
+    
+    if (status != 0) {
+        fprintf(stderr, "[ERROR] Failed to divide out mask: %d\n", status);
+        return -4;
+    }
+    
+    // Step 4 & 5: Recover the sum
+    fprintf(stderr, "[DEBUG] Recovering the sum\n");
+    status = recover_sum(&P_prime, params, sum);
+    free_bigint(&P_prime); // Free the intermediate result
+    
+    if (status != 0) {
+        fprintf(stderr, "[ERROR] Failed to recover sum: %d\n", status);
+        return -5;
+    }
+    
+    fprintf(stderr, "[DEBUG] Vote aggregation completed successfully\n");
     return 0;
 }
 
 /**
  * @brief Unpack votes from a BigInt result
- * @param packed_votes The BigInt containing packed votes
+ * @param packed_votes The BigInt containing packed votes (the sum of all votes)
  * @param votes Array to store the unpacked votes
- * @param max_votes Maximum number of votes to unpack
+ * @param num_candidates Number of candidates (vote slots) to unpack
  * @return Number of votes unpacked, or negative value on error
  */
 int unpack_votes(const BigInt* packed_votes, uint32_t* votes, size_t num_candidates) {
     if (!packed_votes || !votes || num_candidates == 0) {
+        fprintf(stderr, "[ERROR] unpack_votes: Invalid parameters\n");
         return -1; // Invalid parameters
     }
     

@@ -53,7 +53,7 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
     try {
       setSubmitting(true);
       console.log(electionData);
-      await submitVote(selectedCandidate, "voter", {
+      await submitVote(selectedCandidate, "voter1", {
         n: electionData.n,
         h: electionData.h,
         ska: electionData.ska,

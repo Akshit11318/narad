@@ -25,7 +25,6 @@ interface CiphertextsAndAuxResponse {
   aux: string;
 }
 
-
 /**
  * Fetch election parameters from the API
  * @returns Object containing N, H, and Ska values
@@ -89,7 +88,7 @@ export async function fetchCiphertextsAndAux(): Promise<CiphertextsAndAuxRespons
  */
 export async function submitAggregatedResult(sum: string): Promise<any> {
   try {
-    const response = await axios.post(`${API_URL}/aggregated-result`, { sum });
+    const response = await axios.post(`${API_URL}/result`, { sum });
     return response.data;
   } catch (error) {
     console.error("Error submitting aggregated result:", error);

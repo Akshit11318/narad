@@ -5,6 +5,7 @@ import {
   submitAggregatedResult,
 } from "./api";
 import bindings from "bindings";
+import path from "path";
 
 // Define interface for the native addon functions
 interface AggregatorAddon {
@@ -19,12 +20,17 @@ interface AggregatorAddon {
 }
 
 // Load the native addon directly with proper typing
+let addonPath = path.resolve(
+  __dirname,
+  "..",
+  "build",
+  "build",
+  "Release",
+  "aggregator.node"
+);
 let addon: AggregatorAddon;
 try {
-  addon = bindings({
-    bindings: 'aggregator',
-    module_root: __dirname
-  }) as AggregatorAddon;
+  addon = require(addonPath) as AggregatorAddon;
   console.log("Successfully loaded the aggregator native addon");
 } catch (error) {
   console.error("Failed to load aggregator native addon:", error);
@@ -58,21 +64,30 @@ interface AggregatorParamsType {
  */
 function initializeAggregator(nHex: string, hHex: string, skAHex: string): any {
   try {
-    console.log("Creating BigInt from N hex:", nHex ? nHex.substring(0, 10) + "..." : "undefined");
+    console.log(
+      "Creating BigInt from N hex:",
+      nHex ? nHex.substring(0, 10) + "..." : "undefined"
+    );
     if (!nHex) {
       throw new Error("N parameter is undefined or empty");
     }
     const N = addon.createBigIntFromHex(nHex);
     console.log("Successfully created N BigInt");
-    
-    console.log("Creating BigInt from H hex:", hHex ? hHex.substring(0, 10) + "..." : "undefined");
+
+    console.log(
+      "Creating BigInt from H hex:",
+      hHex ? hHex.substring(0, 10) + "..." : "undefined"
+    );
     if (!hHex) {
       throw new Error("H parameter is undefined or empty");
     }
     const H = addon.createBigIntFromHex(hHex);
     console.log("Successfully created H BigInt");
-    
-    console.log("Creating BigInt from skA hex:", skAHex ? skAHex.substring(0, 10) + "..." : "undefined");
+
+    console.log(
+      "Creating BigInt from skA hex:",
+      skAHex ? skAHex.substring(0, 10) + "..." : "undefined"
+    );
     if (!skAHex) {
       throw new Error("Secret key (skA) parameter is undefined or empty");
     }
@@ -106,13 +121,13 @@ async function processAndAggregate(
   params: any,
   ciphertexts: string[],
   auxiliaryValue: string,
-  timeoutMs: number = 60000  // Default timeout of 60 seconds
+  timeoutMs: number = 60000 // Default timeout of 60 seconds
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(new Error(`Operation timed out after ${timeoutMs}ms`));
     }, timeoutMs);
-    
+
     try {
       // Reset the running product
       console.log("Resetting running product...");
@@ -134,14 +149,19 @@ async function processAndAggregate(
             clearTimeout(timeoutId);
             throw new Error(`Failed to add ciphertext to product: ${result}`);
           }
-          
+
           processed++;
           if (processed % 100 === 0 || processed === ciphertexts.length) {
-            console.log(`Processed ${processed}/${ciphertexts.length} ciphertexts`);
+            console.log(
+              `Processed ${processed}/${ciphertexts.length} ciphertexts`
+            );
           }
         } catch (error) {
           clearTimeout(timeoutId);
-          console.error(`Error processing ciphertext at index ${processed}:`, error);
+          console.error(
+            `Error processing ciphertext at index ${processed}:`,
+            error
+          );
           throw error;
         }
       }
@@ -212,13 +232,13 @@ async function main() {
     console.log("Fetching election parameters from backend...");
     const { N: nHex, H: hHex, skA: skAHex } = await fetchElectionParams();
     console.log("Fetched election parameters from backend");
-    
+
     // Validate election parameters
     if (!nHex || !hHex || !skAHex) {
       console.error("Missing election parameters:", {
         N: nHex ? "present" : "missing",
         H: hHex ? "present" : "missing",
-        skA: skAHex ? "present" : "missing"
+        skA: skAHex ? "present" : "missing",
       });
       throw new Error("Election parameters incomplete");
     }
@@ -230,31 +250,37 @@ async function main() {
 
     // Fetch ciphertexts and auxiliary value in a single request
     console.log("Fetching ciphertexts and auxiliary value...");
-    const { ciphertexts: ciphertextData, aux: auxiliaryValue } = await fetchCiphertextsAndAux();
-    
+    const { ciphertexts: ciphertextData, aux: auxiliaryValue } =
+      await fetchCiphertextsAndAux();
+
     // Extract just the ciphertext values from the data
-    const ciphertexts = ciphertextData.map(data => data.ci);
+    const ciphertexts = ciphertextData.map((data) => data.ci);
 
     console.log(`Fetched ${ciphertexts.length} ciphertexts`);
 
     // Process and aggregate with a timeout
     console.log("Starting processing and aggregation...");
-    const sum = await processAndAggregate(params, ciphertexts, auxiliaryValue, 120000);  // 2-minute timeout
+    const sum = await processAndAggregate(
+      params,
+      ciphertexts,
+      auxiliaryValue,
+      120000
+    ); // 2-minute timeout
 
     console.log(
       `Aggregated vote sum: BigInt (not displayed as it's too large)`
     );
 
     // Unpack the votes from the sum
-    const unpackedVotes = unpackVotes(sum);
+    const unpackedVotes = unpackVotes(sum, 4);
     console.log(`Unpacked votes: [${unpackedVotes.join(", ")}]`);
 
     // For API submission, we need to convert the BigInt to a string representation
-    console.log("Converting sum to string for API submission...");
-    const sumString = addon.bigIntToString(sum);
-    console.log("Submitting aggregated result...");
-    await submitAggregatedResult(sumString);
-    console.log("Aggregated result submitted successfully");
+    // console.log("Converting sum to string for API submission...");
+    // const sumString = addon.bigIntToString(sum);
+    // console.log("Submitting aggregated result...");
+    // await submitAggregatedResult(sumString);
+    // console.log("Aggregated result submitted successfully");
 
     // Clean up
     console.log("Cleaning up resources...");
