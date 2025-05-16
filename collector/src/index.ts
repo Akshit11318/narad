@@ -12,7 +12,7 @@ const addonPath = path.resolve(
   __dirname,
   "..",
   "build",
-  "build",
+  // "build",
   "Release",
   "collector.node"
 );

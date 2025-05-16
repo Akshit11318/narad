@@ -2,41 +2,16 @@
 
 cmake_minimum_required(VERSION 3.15)
 
-# This file should only be processed if the Emscripten toolchain is active
-if(NOT CMAKE_TOOLCHAIN_FILE MATCHES ".*Emscripten.cmake")
-    message(STATUS "Skipping WASM build: Emscripten toolchain not active.")
-    message(STATUS "To build WASM module, run: cmake .. -DCMAKE_TOOLCHAIN_FILE=$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake")
-    return()
+project(encryption_wasm C)
+
+# Add the common/bigint_lib and deps if not already included
+if(NOT TARGET bigint_lib)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../common/bigint_lib ${CMAKE_CURRENT_BINARY_DIR}/bigint_lib)
 endif()
 
-# Find Emscripten using our custom module
-find_package(Emscripten QUIET)
-
-# Verify Emscripten is properly configured
-if(NOT EMSCRIPTEN AND NOT DEFINED ENV{EMSCRIPTEN})
-    # Try to detect Emscripten from environment
-    if(EXISTS "${EMSCRIPTEN_TOOLCHAIN_FILE}")
-        message(STATUS "Using toolchain file: ${EMSCRIPTEN_TOOLCHAIN_FILE}")
-        set(EMSCRIPTEN 1)
-    else()
-        message(FATAL_ERROR "Emscripten is not properly configured. Please ensure emsdk is activated.\n"
-                            "Run 'source /path/to/emsdk/emsdk_env.sh' before running CMake.\n"
-                            "If emsdk is in a custom location, set EMSCRIPTEN_ROOT_PATH: -DEMSCRIPTEN_ROOT_PATH=/path/to/emsdk")
-    endif()
+if(NOT TARGET libtommath AND NOT TARGET tommath)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../deps ${CMAKE_CURRENT_BINARY_DIR}/deps)
 endif()
-
-# Display Emscripten version information
-if(Emscripten_FOUND)
-    message(STATUS "Using Emscripten version ${Emscripten_VERSION}")
-    message(STATUS "Emscripten root path: ${Emscripten_ROOT_PATH}")
-endif()
-
-# Allow user to specify custom Emscripten paths
-if(DEFINED EMSCRIPTEN_ROOT_DIR)
-    message(STATUS "Using custom Emscripten root directory: ${EMSCRIPTEN_ROOT_DIR}")
-endif()
-
-project(frontend_wasm C)
 
 # Define source files
 set(WASM_SOURCES
@@ -51,12 +26,11 @@ add_executable(encryption ${WASM_SOURCES})
 
 # Include directories
 target_include_directories(encryption PRIVATE
-    ${CMAKE_SOURCE_DIR}/common/bigint_lib # Access bigint.h
-    ${CMAKE_CURRENT_SOURCE_DIR} # For local header files
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../common/bigint_lib
 )
 
 # Link against the common bigint library
-# This implicitly links against tommath as well
 target_link_libraries(encryption PRIVATE bigint_lib)
 
 # Define exported functions
@@ -78,10 +52,13 @@ set(EXPORTED_FUNCTIONS
     "_get_auxiliary_key"
     "_clear_crypto_params"
     "_initialize_crypto_params"
+    "_main"
 )
-# build the comma‑separated list as before…
+
+# Convert the list to comma-separated string for emcc flags
 string(REPLACE ";" "," EXPORTED_FUNCTIONS_STR "${EXPORTED_FUNCTIONS}")
 
+# Set Emscripten-specific link flags
 set(EMCC_LINK_FLAGS
     "-O3"
     "-sWASM=1"
@@ -90,24 +67,19 @@ set(EMCC_LINK_FLAGS
     "-sALLOW_MEMORY_GROWTH=1"
     "-sMODULARIZE=1"
     "-sEXPORT_ES6=0"
-    "-sEXPORT_NAME=\"createEncryptionModule\""
+    "-sEXPORT_NAME=createEncryptionModule"
     "-sENVIRONMENT=web,worker"
 )
 
-message(STATUS "EMCC link flags = ${EMCC_LINK_FLAGS}")
 target_link_options(encryption PRIVATE ${EMCC_LINK_FLAGS})
 
 # Set output name and properties for Emscripten target
 set_target_properties(encryption PROPERTIES
     OUTPUT_NAME "encryption"
-    SUFFIX ".js" # Tell CMake the primary output is JS
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" # Ensure predictable output location
+    SUFFIX ".js"
 )
 
-# Ensure bigint_lib is built first
-add_dependencies(encryption bigint_lib)
-
-# Define the destination directory relative to the root source directory
+# Define the destination directory
 set(WASM_DESTINATION_DIR "${CMAKE_SOURCE_DIR}/frontend/public/assets")
 
 # Ensure the destination directory exists
@@ -135,4 +107,4 @@ add_custom_command(
     COMMENT "Copying WASM output to ${WASM_DESTINATION_DIR}"
 )
 
-message(STATUS "Configuring frontend WASM module (Emscripten)...")
+message(STATUS "Configured frontend WASM module")

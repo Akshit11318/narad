@@ -1,0 +1,9 @@
+[submodule "deps/libtommath"]
+	path = deps/libtommath
+	url = https://github.com/libtom/libtommath.git
+	ignore = all
+
+[submodule "deps/curl"]
+	path = deps/curl
+	url = https://github.com/curl/curl.git
+	ignore = all

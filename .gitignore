@@ -13,7 +13,6 @@ package-lock.json
 yarn.lock
 cargo.lock
 target
-deps/libtommath
 build
 scripts
 .vscode

@@ -36,6 +36,7 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
   const [selectedCandidate, setSelectedCandidate] = useState<number | null>(
     null
   );
+  const [voterID, setVoterID] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
   const navigate = useNavigate();
 
@@ -44,23 +45,35 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
     setSelectedCandidate(candidateId);
   };
 
+  // Function to handle voter ID input change
+  const handleVoterIDChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setVoterID(e.target.value);
+  };
+
   const handleSubmitVote = async () => {
     if (selectedCandidate === null) {
       toast.error("Please select a candidate");
       return;
     }
 
+    if (!voterID || voterID.trim() === "") {
+      toast.error("Please enter a valid voter ID");
+      return;
+    }
+
     try {
       setSubmitting(true);
       console.log(electionData);
-      await submitVote(selectedCandidate, "voter1", {
+      await submitVote(selectedCandidate, voterID, {
         n: electionData.n,
         h: electionData.h,
         ska: electionData.ska,
       });
 
-      toast.success("Vote submitted successfully!");
-      navigate("/voter");
+      toast.success(`Vote submitted successfully for ${voterID}!`);
+      // Don't navigate away, just clear the form for another vote
+      setSelectedCandidate(null);
+      // Keep the voter ID in case user wants to vote again with same ID
     } catch (error) {
       console.error("Error submitting vote:", error);
       toast.error("Failed to submit vote. Please try again.");
@@ -90,11 +103,31 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
         <div className="election-status">
           <span className="status-indicator">Testing Deployment</span>
         </div>
-      </div>
-
-      <div className="main-content">
+      </div>      <div className="main-content">
         <h1>Select Your Candidate</h1>
         <p className="instruction">Choose one candidate and submit your vote</p>
+        
+        <div className="voter-id-container" style={{ marginBottom: '20px' }}>
+          <label htmlFor="voterId" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            Voter ID:
+          </label>
+          <input 
+            type="text" 
+            id="voterId" 
+            value={voterID}
+            onChange={handleVoterIDChange}
+            placeholder="Enter Voter ID"
+            style={{ 
+              padding: '10px', 
+              width: '100%', 
+              maxWidth: '300px',
+              borderRadius: '4px',
+              border: '1px solid #ccc',
+              fontSize: '16px'
+            }}
+            required
+          />
+        </div>
 
         <div className="candidates-grid">
           {[1, 2, 3, 4].map((candidateId) => (
@@ -103,7 +136,7 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
               className={`candidate-card ${
                 selectedCandidate === candidateId ? "selected" : ""
               }`}
-              onClick={() => handleCandidateSelect(candidateId)}
+              onClick={() => setSelectedCandidate(candidateId)}
             >
               <img
                 src={`/assets/candidate${candidateId}.svg`}
@@ -116,15 +149,27 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
               )}
             </div>
           ))}
-        </div>
-
-        <button
+        </div>        <button
           className="vote-button"
           onClick={handleSubmitVote}
-          disabled={selectedCandidate === null || submitting}
+          disabled={selectedCandidate === null || !voterID || submitting}
+          style={{
+            backgroundColor: "#4CAF50",
+            color: "white",
+            padding: "12px 20px",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "16px",
+            fontWeight: "bold"
+          }}
         >
-          {submitting ? "Submitting..." : "Submit Vote"}
+          {submitting ? "Submitting..." : "Cast Vote"}
         </button>
+        
+        <p style={{ marginTop: "15px", fontSize: "14px", color: "#666" }}>
+          You can cast multiple votes by changing the Voter ID and selecting a candidate again.
+        </p>
       </div>
 
       <footer className="app-footer">
@@ -268,7 +313,7 @@ function App() {
   return (
     <BrowserRouter>
       <div className="app-container">
-        <ToastContainer position="top-right" theme="dark" />
+        <ToastContainer position="top-right" theme="dark" aria-label="Notifications" />
         <Routes>
           <Route path="/" element={<Navigate to="/voter" />} />
           <Route
@@ -284,19 +329,19 @@ function App() {
                     <div className="election-param">
                       <span className="param-label">N:</span>
                       <span className="param-value">
-                        {formatByteArray(electionData?.n)}
+                        {formatByteArray(electionData?.n ?? null)}
                       </span>
                     </div>
                     <div className="election-param">
                       <span className="param-label">H:</span>
                       <span className="param-value">
-                        {formatByteArray(electionData?.h)}
+                        {formatByteArray(electionData?.h ?? null)}
                       </span>
                     </div>
                     <div className="election-param">
                       <span className="param-label">SKA:</span>
                       <span className="param-value">
-                        {formatByteArray(electionData?.ska)}
+                        {formatByteArray(electionData?.ska ?? null)}
                       </span>
                     </div>
                     <div className="election-status">

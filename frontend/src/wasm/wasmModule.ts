@@ -727,8 +727,7 @@ export function formatByteArray(array: Uint8Array | number[] | null): string {
 /**
  * Submit an encrypted vote to the backend
  * @param candidateId The ID of the selected candidate
- * @param electionId The ID of the election
- * @param voterAddress The address of the voter
+ * @param voterAddress The address of the voter (voter ID)
  * @param electionParams The election parameters (n, h)
  * @returns The response from the server
  */
@@ -742,9 +741,14 @@ export async function submitVote(
   }
 ): Promise<any> {
   console.log("Starting submitVote with candidateId:", candidateId);
+  console.log("Voter ID:", voterAddress);
 
   if (candidateId === null) {
     throw new Error("Please select a candidate");
+  }
+  
+  if (!voterAddress || voterAddress.trim() === "") {
+    throw new Error("Please enter a valid voter ID");
   }
 
   const { n, h, ska } = electionParams;
