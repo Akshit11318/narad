@@ -54,7 +54,7 @@ To clone the repository with all dependencies automatically:
 
 ```bash
 # Quick setup - initialize all dependencies
-git clone --recursive https://github.com/yourusername/votingSys.git
+git clone --recursive https://github.com/raj-gigt/votingSys.git
 cd votingSys
 ```
 
@@ -89,7 +89,7 @@ WebAssembly/Emscripten builds are supported on both platforms (for WSL on Window
 
 ```bash
 # Clone the repository with all submodules
-git clone --recursive https://github.com/yourusername/votingSys.git
+git clone --recursive https://github.com/raj-gigt/votingSys.git
 
 # Navigate to the project directory
 cd votingSys
