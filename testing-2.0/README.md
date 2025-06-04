@@ -6,7 +6,7 @@ This project provides an enhanced testing environment for the secure aggregation
 
 The secure aggregation protocol is implemented according to the following steps:
 
-1. **Setup**: The Trusted Party (TP) selects two safe primes p,q and sets N = p*q. It also defines a hash function H and publishes the parameters P = (N, H).
+1. **Setup**: The Trusted Party (TP) selects two safe primes p,q and sets N = p\*q. It also defines a hash function H and publishes the parameters P = (N, H).
 2. **Encrypt**: Each user U_i with data x_i computes a ciphertext c_i = (1 + x_i*N)*(H()^sk_i) mod N^2 and sends it to the aggregator.
 3. **Collect**: The collector computes auxiliary values and sends the product aux to the aggregator.
 4. **Aggregate**: The aggregator uses the ciphertexts and aux to compute the sum of votes.
@@ -48,9 +48,9 @@ npx prisma migrate dev
 ```
 
 3. Configure environment variables:
-   
+
    The `.env` file in the testing-2.0 directory should have:
-   
+
    ```
    # Server configuration
    PORT=3000
@@ -123,6 +123,7 @@ npx ts-node src/scripts/testUser.ts <election_id>
 ## Verification
 
 The system includes verification for:
+
 - Database connection
 - Environment variables
 - API routes
@@ -189,6 +190,7 @@ All cryptographic parameters (N and H) are now stored in the database instead of
 ## Integration with Actual Modules
 
 ### Symlink Setup:
+
 ```bash
 cd testing-2.0
 mklink /J aggregator ..\aggregator
@@ -196,23 +198,31 @@ mklink /J collector ..\collector
 ```
 
 ### WASM Integration:
+
 1. Build WASM modules from frontend/src/wasm:
+
 ```bash
 cd frontend/src/wasm && make
 ```
+
 2. Copy built artifacts to testing-2.0/src/scripts
 
 ### Testing Workflow:
+
 1. Start backend server:
+
 ```bash
 yarn backend:dev
 ```
+
 2. Run integration tests:
+
 ```bash
 yarn test --config ./tests/config.js
 ```
 
 ### Environment Variables:
+
 ```env
 AGGREGATOR_MODULE_PATH=./aggregator/src
 COLLECTOR_MODULE_PATH=./collector/src
@@ -220,6 +230,7 @@ WASM_MODULE_PATH=./src/scripts/wasm
 ```
 
 ### API Endpoints:
+
 - Collector: POST /api/collector/process
 - Aggregator: POST /api/aggregator/aggregate
 - WASM Operations: POST /api/user/verify
