@@ -431,3 +431,448 @@ int initialize_crypto_params(const uint8_t* n, size_t n_len, const uint8_t* h, s
     return 0;
 }
 
+
+
+// ========================================
+// Essential Math Functions for ZKP Operations
+// ========================================
+
+/**
+ * @brief WASM wrapper for modular exponentiation: (base^exp) mod modulus
+ * @param base_data Base value data
+ * @param base_len Length of base data
+ * @param exp_data Exponent data
+ * @param exp_len Length of exponent data
+ * @param mod_data Modulus data
+ * @param mod_len Length of modulus data
+ * @param result Buffer to store result
+ * @param result_len Length of result buffer
+ * @return 0 on success, negative on error
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmmodexp(const uint8_t* base_data, size_t base_len,
+                const uint8_t* exp_data, size_t exp_len,
+                const uint8_t* mod_data, size_t mod_len,
+                uint8_t* result, size_t result_len) {
+    BigInt base = create_bigint(base_data, base_len);
+    BigInt exp = create_bigint(exp_data, exp_len);
+    BigInt mod = create_bigint(mod_data, mod_len);
+    BigInt res;
+    
+    int ret = modular_exponentiation(&base, &exp, &mod, &res);
+    
+    if (ret == 0 && res.length <= result_len) {
+        memcpy(result, res.data, res.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&base);
+    free_bigint(&exp);
+    free_bigint(&mod);
+    if (ret == 0) free_bigint(&res);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for modular multiplication: (a * b) mod modulus
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmmodmul(const uint8_t* a_data, size_t a_len,
+                const uint8_t* b_data, size_t b_len,
+                const uint8_t* mod_data, size_t mod_len,
+                uint8_t* result, size_t result_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt b = create_bigint(b_data, b_len);
+    BigInt mod = create_bigint(mod_data, mod_len);
+    BigInt res;
+    
+    int ret = modular_multiplication(&a, &b, &mod, &res);
+    
+    if (ret == 0 && res.length <= result_len) {
+        memcpy(result, res.data, res.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&a);
+    free_bigint(&b);
+    free_bigint(&mod);
+    if (ret == 0) free_bigint(&res);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for modular addition: (a + b) mod modulus
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmmodadd(const uint8_t* a_data, size_t a_len,
+                const uint8_t* b_data, size_t b_len,
+                const uint8_t* mod_data, size_t mod_len,
+                uint8_t* result, size_t result_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt b = create_bigint(b_data, b_len);
+    BigInt mod = create_bigint(mod_data, mod_len);
+    BigInt res;
+    
+    int ret = modular_addition(&a, &b, &mod, &res);
+    
+    if (ret == 0 && res.length <= result_len) {
+        memcpy(result, res.data, res.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&a);
+    free_bigint(&b);
+    free_bigint(&mod);
+    if (ret == 0) free_bigint(&res);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for modular subtraction: (a - b) mod modulus
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmmodsub(const uint8_t* a_data, size_t a_len,
+                const uint8_t* b_data, size_t b_len,
+                const uint8_t* mod_data, size_t mod_len,
+                uint8_t* result, size_t result_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt b = create_bigint(b_data, b_len);
+    BigInt mod = create_bigint(mod_data, mod_len);
+    BigInt res;
+    
+    // For modular subtraction: (a - b + mod) mod mod
+    BigInt temp;
+    int ret = bigint_add(&a, &mod, &temp);
+    if (ret == 0) {
+        ret = bigint_subtract(&temp, &b, &res);
+        if (ret == 0) {
+            BigInt final_res;
+            ret = bigint_mod(&res, &mod, &final_res);
+            if (ret == 0 && final_res.length <= result_len) {
+                memcpy(result, final_res.data, final_res.length);
+            }
+            if (ret == 0) free_bigint(&final_res);
+        }
+        free_bigint(&temp);
+    }
+    
+    free_bigint(&a);
+    free_bigint(&b);
+    free_bigint(&mod);
+    if (ret == 0) free_bigint(&res);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for BigInt comparison: returns -1, 0, 1
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmcmp(const uint8_t* a_data, size_t a_len,
+             const uint8_t* b_data, size_t b_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt b = create_bigint(b_data, b_len);
+    
+    int result = compare_bigint(&a, &b);
+    
+    free_bigint(&a);
+    free_bigint(&b);
+    
+    return result;
+}
+
+/**
+ * @brief WASM wrapper for BigInt equality check: returns 0 or 1
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmequal(const uint8_t* a_data, size_t a_len,
+               const uint8_t* b_data, size_t b_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt b = create_bigint(b_data, b_len);
+    
+    int result = (compare_bigint(&a, &b) == 0) ? 1 : 0;
+    
+    free_bigint(&a);
+    free_bigint(&b);
+    
+    return result;
+}
+
+/**
+ * @brief WASM wrapper for secure random generation
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmrand(uint8_t* result, size_t result_len,
+              const uint8_t* mod_data, size_t mod_len) {
+    BigInt mod = create_bigint(mod_data, mod_len);
+    BigInt random_result;
+    
+    int ret = generate_random_coprime(&random_result, &mod);
+    
+    if (ret == 0 && random_result.length <= result_len) {
+        memcpy(result, random_result.data, random_result.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&mod);
+    if (ret == 0) free_bigint(&random_result);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for modular inverse: a^(-1) mod modulus
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmmodinv(const uint8_t* a_data, size_t a_len,
+                const uint8_t* mod_data, size_t mod_len,
+                uint8_t* result, size_t result_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt mod = create_bigint(mod_data, mod_len);
+    BigInt res;
+    
+    int ret = modular_inverse(&a, &mod, &res);
+    
+    if (ret == 0 && res.length <= result_len) {
+        memcpy(result, res.data, res.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&a);
+    free_bigint(&mod);
+    if (ret == 0) free_bigint(&res);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for basic addition: a + b
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmadd(const uint8_t* a_data, size_t a_len,
+             const uint8_t* b_data, size_t b_len,
+             uint8_t* result, size_t result_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt b = create_bigint(b_data, b_len);
+    
+    // Allocate temporary buffer for result (should be larger to handle overflow)
+    size_t temp_size = (a_len > b_len ? a_len : b_len) + 1;
+    uint8_t* temp_data = (uint8_t*)calloc(temp_size, 1);
+    if (!temp_data) {
+        free_bigint(&a);
+        free_bigint(&b);
+        return -1;
+    }
+    
+    BigInt res = create_bigint(temp_data, temp_size);
+    
+    int ret = bigint_add(&a, &b, &res);
+    
+    if (ret == 0 && res.length <= result_len) {
+        memcpy(result, res.data, res.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&a);
+    free_bigint(&b);
+    free_bigint(&res);
+    free(temp_data);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for basic subtraction: a - b
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmsub(const uint8_t* a_data, size_t a_len,
+             const uint8_t* b_data, size_t b_len,
+             uint8_t* result, size_t result_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt b = create_bigint(b_data, b_len);
+    BigInt res;
+    
+    int ret = bigint_subtract(&a, &b, &res);
+    
+    if (ret == 0 && res.length <= result_len) {
+        memcpy(result, res.data, res.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&a);
+    free_bigint(&b);
+    if (ret == 0) free_bigint(&res);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for basic multiplication: a * b
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmmul(const uint8_t* a_data, size_t a_len,
+             const uint8_t* b_data, size_t b_len,
+             uint8_t* result, size_t result_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt b = create_bigint(b_data, b_len);
+    BigInt res;
+    
+    int ret = multiply_bigint(&a, &b, &res);
+    
+    if (ret == 0 && res.length <= result_len) {
+        memcpy(result, res.data, res.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&a);
+    free_bigint(&b);
+    if (ret == 0) free_bigint(&res);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for modulo operation: a mod modulus
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmmod(const uint8_t* a_data, size_t a_len,
+             const uint8_t* mod_data, size_t mod_len,
+             uint8_t* result, size_t result_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt mod = create_bigint(mod_data, mod_len);
+    BigInt res;
+    
+    int ret = bigint_mod(&a, &mod, &res);
+    
+    if (ret == 0 && res.length <= result_len) {
+        memcpy(result, res.data, res.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&a);
+    free_bigint(&mod);
+    if (ret == 0) free_bigint(&res);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper to check if BigInt is zero
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmiszero(const uint8_t* a_data, size_t a_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    
+    // Check if all bytes are zero
+    int is_zero = 1;
+    for (size_t i = 0; i < a.length; i++) {
+        if (a.data[i] != 0) {
+            is_zero = 0;
+            break;
+        }
+    }
+    
+    free_bigint(&a);
+    return is_zero;
+}
+
+/**
+ * @brief WASM wrapper for GCD: gcd(a, b)
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmgcd(const uint8_t* a_data, size_t a_len,
+             const uint8_t* b_data, size_t b_len,
+             uint8_t* result, size_t result_len) {
+    BigInt a = create_bigint(a_data, a_len);
+    BigInt b = create_bigint(b_data, b_len);
+    BigInt res;
+    
+    int ret = gcd(&a, &b, &res);
+    
+    if (ret == 0 && res.length <= result_len) {
+        memcpy(result, res.data, res.length);
+    } else {
+        ret = -1;
+    }
+    
+    free_bigint(&a);
+    free_bigint(&b);
+    if (ret == 0) free_bigint(&res);
+    
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper for hex string to BigInt conversion
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmfromhex(const char* hex_str, uint8_t* result, size_t result_len) {
+    BigInt bigint_result;
+    int ret = hex_string_to_bigint(hex_str, &bigint_result);
+    
+    if (ret == 0 && bigint_result.length <= result_len) {
+        memcpy(result, bigint_result.data, bigint_result.length);
+        free_bigint(&bigint_result);
+        return (int)bigint_result.length; // Return actual length
+    } else {
+        if (ret == 0) free_bigint(&bigint_result);
+        return -1;
+    }
+}
+
+/**
+ * @brief WASM wrapper for BigInt to hex string conversion
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmtohex(const uint8_t* bigint_data, size_t bigint_len,
+               char* hex_str, size_t str_size) {
+    BigInt bigint = create_bigint(bigint_data, bigint_len);
+    
+    int ret = bigint_to_hex_string(&bigint, hex_str, str_size);
+    
+    free_bigint(&bigint);
+    return ret;
+}
+
+/**
+ * @brief WASM wrapper to get the byte length of a BigInt
+ */
+EMSCRIPTEN_KEEPALIVE
+size_t wasmlen(const uint8_t* bigint_data, size_t bigint_len) {
+    // Remove leading zeros to get actual length
+    size_t actual_len = bigint_len;
+    for (size_t i = 0; i < bigint_len; i++) {
+        if (bigint_data[i] != 0) {
+            break;
+        }
+        actual_len--;
+    }
+    return (actual_len == 0) ? 1 : actual_len; // At least 1 byte for zero
+}
+
+/**
+ * @brief WASM wrapper to copy BigInt data
+ */
+EMSCRIPTEN_KEEPALIVE
+int wasmcopy(const uint8_t* src_data, size_t src_len,
+              uint8_t* dest_data, size_t dest_len) {
+    if (dest_len < src_len) {
+        return -1; // Destination buffer too small
+    }
+    
+    memcpy(dest_data, src_data, src_len);
+    return 0;
+}
+

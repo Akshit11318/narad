@@ -432,13 +432,12 @@ export async function generateZKProof(
     const sumProof = await generateSumProof(votes, voteCommitments, commitmentParams);
     
     updateProgress(progressCallback, 'generating_single_use_proof', 85);
-    
-    // Generate single generation proof using session-based WASM operations
+      // Generate single generation proof using session-based WASM operations
     console.log('🔐 ZKProof: Using session parameters for generation proof');
     const generationProof = await generateSingleGenerationProof(
       voterKeys,
       voterKeys.voterHash,
-      sessionParams.masterSeed, // Use session master seed instead of electionParams
+      electionParams, // Use original electionParams to match main proof structure
       sessionParams.derivedSeeds.generationProofSeed // Use session-derived seed
     );
     

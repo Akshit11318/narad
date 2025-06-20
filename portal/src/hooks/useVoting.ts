@@ -7,13 +7,12 @@ import type { Candidate, EncryptionResult } from '../types';
 export function useVoting() {
   const votingStore = useVotingStore();
   const { user } = useAuth();
-
   // Load candidates on mount
   useEffect(() => {
     if (votingStore.candidates.length === 0) {
       votingStore.loadCandidates();
     }
-  }, [votingStore.loadCandidates, votingStore.candidates.length]);
+  }, [votingStore.candidates.length]); // Remove votingStore.loadCandidates from dependencies
 
   // Clear errors after a delay
   useEffect(() => {
@@ -44,10 +43,8 @@ export function useVoting() {
     if (!votingStore.selectedCandidate) {
       toast.error('No candidate selected');
       return null;
-    }
-
-    try {
-      const result = await votingStore.encryptSelectedVote(user.voterId);
+    }    try {
+      const result = await votingStore.encryptSelectedVote();
       toast.success('Vote encrypted successfully');
       return result;
     } catch (error) {
@@ -56,7 +53,6 @@ export function useVoting() {
       return null;
     }
   }, [user, votingStore.selectedCandidate, votingStore.encryptSelectedVote]);
-
   const submitVote = useCallback(async () => {
     if (!user) {
       toast.error('User not authenticated');
@@ -73,15 +69,23 @@ export function useVoting() {
       return;
     }
 
+    if (votingStore.isVoting) {
+      console.log('🛑 useVoting: Vote submission already in progress, ignoring duplicate call');
+      return;
+    }
+
     try {
+      console.log('🎯 useVoting: Starting vote submission via store...');
       await votingStore.submitVote(user.voterId);
       toast.success('Vote submitted successfully!');
+      console.log('✅ useVoting: Vote submission completed successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit vote';
       toast.error(errorMessage);
+      console.error('❌ useVoting: Vote submission failed:', error);
       throw error;
     }
-  }, [user, votingStore.selectedCandidate, votingStore.hasVoted, votingStore.submitVote]);
+  }, [user, votingStore.selectedCandidate, votingStore.hasVoted, votingStore.isVoting, votingStore.submitVote]);
 
   const clearSelection = useCallback(() => {
     votingStore.clearSelection();
@@ -90,8 +94,7 @@ export function useVoting() {
 
   const resetVoting = useCallback(() => {
     votingStore.resetVoting();
-  }, [votingStore.resetVoting]);
-  return {
+  }, [votingStore.resetVoting]);  return {
     // State
     candidates: votingStore.candidates,
     selectedCandidate: votingStore.selectedCandidate,

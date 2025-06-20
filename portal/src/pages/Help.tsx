@@ -19,11 +19,10 @@ const faqData: FAQItem[] = [
     id: '2',
     question: 'Can I change my vote after submission?',
     answer: 'No, once your vote is submitted and recorded on the blockchain, it cannot be changed or deleted. This immutability is a key feature that ensures the integrity of the election. Please review your selection carefully before confirming.'
-  },
-  {
+  },  {
     id: '3',
     question: 'How do I know my vote was counted?',
-    answer: 'After submitting your vote, you will receive a cryptographic receipt that proves your vote was recorded. This receipt can be used to verify that your vote is included in the final tally without revealing how you voted.'
+    answer: 'After submitting your vote, you will receive a zero-knowledge proof verification that confirms your vote was recorded. This cryptographic proof validates that your vote is included in the final tally without revealing how you voted.'
   },
   {
     id: '4',

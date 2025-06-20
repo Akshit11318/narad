@@ -26,13 +26,12 @@ export interface VotingState {
   selectedCandidate: Candidate | null;
   isVoting: boolean;
   hasVoted: boolean;
-  encryptedVote: Uint8Array | null;
-  voteConfirmation: VoteConfirmation | null; // Replace voteReceipt with voteConfirmation
+  encryptedVote: Uint8Array | null;  voteConfirmation: VoteConfirmation | null;
   error: string | null;
   isLoading: boolean;
 }
 
-// Replace VoteReceipt with VoteConfirmation using ZK proof
+// Vote confirmation with ZK proof validation
 export interface VoteConfirmation {
   voterId: string;
   candidateName: string;

@@ -4,23 +4,21 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../components/layout';
 import { Button } from '../components/ui';
-import { CandidateCard, VoteConfirmation, PublicVerificationDisplay } from '../components/voting';
-import { useAuth, useVoting, useWasm, useZKProof } from '../hooks';
+import { CandidateCard, VoteConfirmation, VoteSuccessDisplay } from '../components/voting';
+import { useVoting, useWasm, useZKProof } from '../hooks';
 import { ROUTES } from '../utils/constants';
 import type { Candidate } from '../types';
 
 export function Voting() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+
   const { 
     candidates, 
     selectedCandidate, 
     isVoting, 
-    isLoading: votingLoading,
     hasVoted,
-    loadCandidates, 
-    selectCandidate, 
-    submitVote 
+    voteConfirmation,
+    selectCandidate
   } = useVoting();
   const { isLoaded: wasmLoaded } = useWasm();
   const { publicVerificationData } = useZKProof();
@@ -28,7 +26,6 @@ export function Voting() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState<'selection' | 'confirmation' | 'submitted'>('selection');
-
   useEffect(() => {
     // Redirect if user has already voted
     if (hasVoted) {
@@ -37,10 +34,16 @@ export function Voting() {
       return;
     }
 
+    // Auto-transition to submitted state if vote confirmation exists
+    if (voteConfirmation && currentStep !== 'submitted') {
+      setCurrentStep('submitted');
+      setShowConfirmation(false);
+    }
+
     // Load candidates and check WASM module
     const initializeVoting = async () => {
       try {
-        await loadCandidates();
+        // Don't call loadCandidates here - it's handled by useVoting hook
         if (!wasmLoaded) {
           toast.error('Encryption module not loaded. Please refresh the page.');
           return;
@@ -54,42 +57,26 @@ export function Voting() {
     };
 
     initializeVoting();
-  }, [hasVoted, loadCandidates, navigate, wasmLoaded]);
+  }, [hasVoted, navigate, wasmLoaded, voteConfirmation, currentStep]);
 
   const handleCandidateSelect = (candidate: Candidate) => {
     if (currentStep === 'selection') {
       selectCandidate(candidate);
     }
   };
-
   const handleProceedToConfirmation = () => {
     if (!selectedCandidate) {
       toast.error('Please select a candidate first');
       return;
     }
+    
+    if (currentStep !== 'selection') {
+      console.log('🛑 Voting: Already proceeding to confirmation, ignoring duplicate call');
+      return;
+    }    
+    console.log('🎯 Voting: Proceeding to confirmation step...');
     setCurrentStep('confirmation');
     setShowConfirmation(true);
-  };
-  const handleConfirmVote = async () => {
-    if (!selectedCandidate || !user) {
-      toast.error('Missing required data for vote submission');
-      return;
-    }
-
-    try {
-      await submitVote();
-      setCurrentStep('submitted');
-      
-      // Show success message and redirect after delay
-      setTimeout(() => {
-        navigate(ROUTES.DASHBOARD);
-      }, 3000);
-    } catch (error) {
-      console.error('Vote submission failed:', error);
-      toast.error('Failed to submit vote. Please try again.');
-      setCurrentStep('selection');
-      setShowConfirmation(false);
-    }
   };
 
   const handleBackToSelection = () => {
@@ -222,7 +209,7 @@ export function Voting() {
                 </Button>
               </div>
             </motion.div>
-          )}          {currentStep === 'submitted' && (
+          )}          {currentStep === 'submitted' && voteConfirmation && (
             <motion.div
               key="submitted"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -230,38 +217,25 @@ export function Voting() {
               transition={{ duration: 0.5 }}
               className="py-12"
             >
-              {publicVerificationData ? (
-                <PublicVerificationDisplay 
-                  verificationData={publicVerificationData}
-                  className="max-w-2xl mx-auto"
-                />
-              ) : (
-                <div className="text-center">
-                  <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-8 max-w-md mx-auto">
-                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <h3 className="text-2xl font-bold text-white mb-2">Vote Submitted Successfully!</h3>
-                    <p className="text-gray-400 mb-4">
-                      Your vote has been encrypted and recorded with zero-knowledge proof verification.
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Redirecting to dashboard in a few seconds...
-                    </p>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          )}
+              <VoteSuccessDisplay
+                voteConfirmation={voteConfirmation}
+                publicVerificationData={publicVerificationData}
+                onClose={() => navigate(ROUTES.DASHBOARD)}
+              />
+            </motion.div>          )}
         </AnimatePresence>
 
-        {/* Vote Confirmation Modal */}        <VoteConfirmation
+        {/* Vote Confirmation Modal */}
+        <VoteConfirmation
           isOpen={showConfirmation}
           onClose={handleBackToSelection}
-          onConfirm={handleConfirmVote}
-          candidate={selectedCandidate}
+          candidate={selectedCandidate}          onDone={() => {
+            // Real vote submission is now handled in VoteConfirmation
+            // Just close modal and redirect to dashboard
+            setShowConfirmation(false);
+            toast.success('Vote process completed successfully!');
+            navigate(ROUTES.DASHBOARD);
+          }}
         />
       </div>
     </Layout>

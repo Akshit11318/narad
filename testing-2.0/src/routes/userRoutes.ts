@@ -3,6 +3,42 @@ import prisma from "../prisma";
 
 const router = Router();
 
+// Static candidates data
+const candidates = [
+  {
+    id: 1,
+    name: "Alice Johnson",
+    photo: "/assets/candidate1.svg",
+    party: "Progressive Party",
+    description:
+      "Experienced leader focused on education and healthcare reform.",
+  },
+  {
+    id: 2,
+    name: "Bob Smith",
+    photo: "/assets/candidate2.svg",
+    party: "Unity Party",
+    description:
+      "Business leader committed to economic growth and job creation.",
+  },
+  {
+    id: 3,
+    name: "Carol Davis",
+    photo: "/assets/candidate3.svg",
+    party: "Green Alliance",
+    description:
+      "Environmental advocate working for sustainable development.",
+  },
+  {
+    id: 4,
+    name: "David Wilson",
+    photo: "/assets/candidate4.svg",
+    party: "Independent",
+    description:
+      "Community organizer focused on local issues and transparency.",
+  },
+];
+
 // Get system parameters (N, H, skA)
 router.get("/params", async (req, res) => {
   try {
@@ -113,6 +149,16 @@ router.get("/result", async (req, res) => {
   } catch (error) {
     console.error("Failed to fetch election results:", error);
     res.status(500).json({ error: "Failed to fetch election results" });
+  }
+});
+
+// Get candidates
+router.get("/candidates", async (req, res) => {
+  try {
+    res.status(200).json(candidates);
+  } catch (error) {
+    console.error("Failed to fetch candidates:", error);
+    res.status(500).json({ error: "Failed to fetch candidates" });
   }
 });
 

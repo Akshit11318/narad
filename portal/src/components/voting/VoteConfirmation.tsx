@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Button, Modal } from '../ui';
 import { ZKProofIndicator } from '../ZKProofIndicator';
-import { useVoting, useZKProof } from '../../hooks';
+import { useZKProof, useVoting } from '../../hooks';
 import { initializeZKPSession, getCurrentZKPSession } from '../../utils/zkProof';
 import type { Candidate, EncryptionResult } from '../../types';
 import { CANDIDATE_CONFIG } from '../../utils/constants';
@@ -20,11 +20,10 @@ interface VoteConfirmationProps {
   isOpen: boolean;
   onClose: () => void;
   candidate: Candidate | null;
-  onConfirm: () => Promise<void>;
+  onDone: () => void; // Changed from onConfirm to onDone for clarity
 }
 
-export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: VoteConfirmationProps) {
-  const { isVoting } = useVoting();
+export function VoteConfirmation({ isOpen, onClose, candidate, onDone }: VoteConfirmationProps) {
   const { 
     zkProofStatus, 
     publicVerificationData, 
@@ -32,26 +31,35 @@ export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: Vote
     verifyProof,
     resetProofStatus 
   } = useZKProof();
+  const { submitVote } = useVoting();
   const [encryptionResult, setEncryptionResult] = useState<EncryptionResult | null>(null);
   const [isEncrypting, setIsEncrypting] = useState(false);
-  const [step, setStep] = useState<'confirm' | 'encrypt' | 'zkproof' | 'verify' | 'submit'>('confirm');
+  const [step, setStep] = useState<'confirm' | 'encrypt' | 'zkproof' | 'verify' | 'submit' | 'done'>('confirm');
   const [generatedProof, setGeneratedProof] = useState<any>(null);
   const [electionParams, setElectionParams] = useState<any>(null);
-  const hasResetRef = useRef(false);
-  // Use state variables to avoid TypeScript warnings
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const hasResetRef = useRef(false);  // Use state variables to avoid TypeScript warnings
   const hasEncryptionResult = !!encryptionResult;
   const isCurrentlyEncrypting = isEncrypting;
   const hasGeneratedProof = !!generatedProof;
   const hasElectionParams = !!electionParams;
-  // Reset state when modal opens/closes
+  const isCurrentlySubmitting = isSubmitting;  // Reset state when modal opens/closes and auto-start process
   useEffect(() => {
     if (isOpen && !hasResetRef.current) {
       setStep('confirm');
       setEncryptionResult(null);
       setGeneratedProof(null);
       setElectionParams(null);
+      setIsSubmitting(false);
       resetProofStatus();
       hasResetRef.current = true;
+      
+      // Auto-start the encryption and ZKP process after a brief delay
+      const startProcess = async () => {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay for UI
+        handleEncryptAndGenerateProof();
+      };
+      startProcess();
     } else if (!isOpen) {
       hasResetRef.current = false;
     }
@@ -124,12 +132,26 @@ export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: Vote
         
         console.log('🔍 VoteConfirmation: Verifying proof with session parameter consistency');
         const isValid = await verifyProof(proof);
-        
-        console.log('🔍 VoteConfirmation: Verification result:', isValid);
+          console.log('🔍 VoteConfirmation: Verification result:', isValid);
         
         if (isValid) {
           console.log('✅ VoteConfirmation: Proof verification successful - session parameters consistent');
+          
+          // Step 5: Submit vote to backend after successful ZKP verification
           setStep('submit');
+          setIsSubmitting(true);
+          
+          console.log('📤 VoteConfirmation: Submitting vote to backend...');
+          try {
+            await submitVote();
+            console.log('✅ VoteConfirmation: Vote successfully submitted to backend');
+            setIsSubmitting(false);
+            setStep('done');
+          } catch (error) {
+            console.error('❌ VoteConfirmation: Backend submission failed:', error);
+            setIsSubmitting(false);
+            throw new Error('Vote submission to backend failed');
+          }
         } else {
           // Log detailed verification failure
           console.error('❌ VoteConfirmation: Proof verification failed for generated proof');
@@ -145,20 +167,15 @@ export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: Vote
       setStep('confirm');
     }
   };
-
-  const handleFinalSubmit = async () => {
-    try {
-      await onConfirm();
-      onClose();
-    } catch (error) {
-      console.error('Submit failed:', error);
-    }
+  const handleDone = () => {
+    // Simply close the modal and call onDone callback
+    onDone();
+    onClose();
   };
 
   if (!candidate) return null;
-
   const renderStepIndicator = () => {
-    const steps = ['Confirm', 'Encrypt', 'ZK Proof', 'Verify', 'Submit'];
+    const steps = ['Confirm', 'Encrypt', 'ZK Proof', 'Verify', 'Submit', 'Done'];
     const currentStepIndex = steps.findIndex(s => s.toLowerCase() === step);
 
     return (
@@ -351,11 +368,46 @@ export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: Vote
                 <p className="font-mono text-green-400 text-lg">{publicVerificationData.verificationCode}</p>
                 <p className="text-xs text-gray-500">This code ensures session parameter integrity</p>
               </div>
-            )}
+            )}          </motion.div>        );
+
+      case 'submit':
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center space-y-4"
+          >
+            <div className="text-blue-400 mb-4">
+              <svg className="w-16 h-16 mx-auto animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white">Submitting Vote to Backend</h3>
+            <div className="bg-gray-700 rounded-lg p-4 space-y-2 text-left">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <span className="text-sm text-gray-300">ZK Proof verified ✓</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <span className="text-sm text-gray-300">Encryption validated ✓</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                <span className="text-sm text-gray-300">Submitting to backend...</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                <span className="text-sm text-gray-300">Recording vote in blockchain...</span>
+              </div>
+            </div>
+            <p className="text-gray-300">
+              Your verified vote is being securely recorded...
+            </p>
           </motion.div>
         );
 
-      case 'submit':
+      case 'done':
         return (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -366,11 +418,50 @@ export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: Vote
               <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-            </div>
-            <h3 className="text-xl font-bold text-white">Ready to Submit</h3>
+            </div>            <h3 className="text-xl font-bold text-white">Cryptographic Process Complete!</h3>
             <p className="text-gray-300">
-              Your vote is encrypted and verified. Ready for submission.
-            </p>            <div className="bg-gray-700 rounded-lg p-4 space-y-2">
+              Your vote has been encrypted and verified with zero-knowledge proof. The cryptographic process is complete.
+            </p>
+
+            {/* Enhanced ZKP Integration Display */}
+            <div className="bg-gray-800/60 rounded-lg p-6 space-y-4 max-w-2xl mx-auto">
+              <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                Zero-Knowledge Proof Summary
+              </h4>
+              
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="bg-gray-700/50 p-3 rounded">
+                  <span className="text-gray-400">Vote Encrypted:</span>
+                  <span className="text-green-400 ml-2">✓ Verified</span>
+                </div>
+                <div className="bg-gray-700/50 p-3 rounded">
+                  <span className="text-gray-400">ZK Proof Generated:</span>
+                  <span className="text-green-400 ml-2">✓ Valid</span>
+                </div>
+                <div className="bg-gray-700/50 p-3 rounded">
+                  <span className="text-gray-400">Range Proof:</span>
+                  <span className="text-green-400 ml-2">✓ Passed</span>
+                </div>
+                <div className="bg-gray-700/50 p-3 rounded">
+                  <span className="text-gray-400">Sum Proof:</span>
+                  <span className="text-green-400 ml-2">✓ Passed</span>
+                </div>
+              </div>
+
+              {publicVerificationData && (
+                <div className="mt-4 p-4 bg-gray-700/30 rounded border border-gray-600">
+                  <p className="text-sm text-gray-400 mb-2">Verification Code:</p>
+                  <code className="bg-gray-700 px-3 py-2 rounded font-mono text-green-400 text-sm">
+                    {publicVerificationData.verificationCode}
+                  </code>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-gray-700 rounded-lg p-4 space-y-2">
               <p className="text-sm text-gray-400">Vote Summary:</p>
               <p className="font-semibold text-white">{candidate.name}</p>
               <p className="text-xs text-green-400">
@@ -380,6 +471,7 @@ export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: Vote
               </p>              <p className="text-xs text-gray-500">
                 Encryption Status: {isCurrentlyEncrypting ? 'Processing...' : 'Complete'}
                 {hasElectionParams && ' | Election Parameters: Loaded'}
+                {isCurrentlySubmitting && ' | Backend Submission: In Progress'}
               </p>
               {encryptionResult && (
                 <div className="text-xs text-gray-500">
@@ -397,28 +489,18 @@ export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: Vote
   };
 
   const renderActionButtons = () => {
-    switch (step) {
-      case 'confirm':
+    switch (step) {      case 'confirm':
         return (
           <div className="flex space-x-3">
             <Button
               variant="outline"
               onClick={onClose}
-              className="flex-1"
+              className="w-full"
             >
               Cancel
-            </Button>
-            <Button
-              onClick={handleEncryptAndGenerateProof}
-              className="flex-1"
-              disabled={isVoting}
-            >
-              Proceed with Vote
             </Button>
           </div>
-        );
-
-      case 'submit':
+        );case 'done':
         return (
           <div className="flex space-x-3">
             <Button
@@ -429,11 +511,11 @@ export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: Vote
               Cancel
             </Button>
             <Button
-              onClick={handleFinalSubmit}
+              onClick={handleDone}
               className="flex-1"
-              disabled={isVoting}
+              variant="primary"
             >
-              {isVoting ? 'Submitting...' : 'Submit Vote'}
+              Done
             </Button>
           </div>
         );
@@ -451,12 +533,11 @@ export function VoteConfirmation({ isOpen, onClose, candidate, onConfirm }: Vote
     }
   };
 
-  return (
-    <Modal
+  return (    <Modal
       isOpen={isOpen}
       onClose={onClose}
       title="Vote Confirmation"
-      size="lg"
+      size="xl"
     >
       <div className="space-y-6">
         {renderStepIndicator()}

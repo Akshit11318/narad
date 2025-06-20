@@ -39,7 +39,7 @@ interface ApiResponse<T = any> {
 }
 
 class ZKProofApiService {
-  private baseUrl = '/api/zkproof';
+  private baseUrl = 'http://localhost:3000/api/zkproof';
   async submitProof(proofData: ZKProofSubmissionData): Promise<ApiResponse> {
     try {
       const response = await fetch(`${this.baseUrl}/submit`, {
