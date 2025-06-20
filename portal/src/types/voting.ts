@@ -13,6 +13,7 @@ export interface Vote {
   auxiliaryKey: string;
   timestamp: Date;
   transactionHash?: string;
+  zkProofId?: string; // Reference to ZK proof
 }
 
 export interface VoteArray {
@@ -26,17 +27,26 @@ export interface VotingState {
   isVoting: boolean;
   hasVoted: boolean;
   encryptedVote: Uint8Array | null;
-  voteReceipt: VoteReceipt | null;
+  voteConfirmation: VoteConfirmation | null; // Replace voteReceipt with voteConfirmation
   error: string | null;
   isLoading: boolean;
 }
 
-export interface VoteReceipt {
+// Replace VoteReceipt with VoteConfirmation using ZK proof
+export interface VoteConfirmation {
   voterId: string;
   candidateName: string;
   timestamp: Date;
   transactionHash: string;
-  encryptedVotePreview: string;
+  zkProofId: string;
+  verificationCode: string;
+  isZKProofValid: boolean;
+  zkProofSummary: {
+    rangeProofValid: boolean;
+    sumProofValid: boolean;
+    generationProofValid: boolean;
+    mathematicallySound: boolean;
+  };
 }
 
 export interface ElectionParams {

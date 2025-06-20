@@ -85,13 +85,12 @@ export function useVoting() {
 
   const clearSelection = useCallback(() => {
     votingStore.clearSelection();
-    toast.info('Selection cleared');
+    toast('Selection cleared');
   }, [votingStore.clearSelection]);
 
   const resetVoting = useCallback(() => {
     votingStore.resetVoting();
   }, [votingStore.resetVoting]);
-
   return {
     // State
     candidates: votingStore.candidates,
@@ -100,7 +99,7 @@ export function useVoting() {
     isLoading: votingStore.isLoading,
     hasVoted: votingStore.hasVoted,
     encryptedVote: votingStore.encryptedVote,
-    voteReceipt: votingStore.voteReceipt,
+    voteConfirmation: votingStore.voteConfirmation,
     error: votingStore.error,
     
     // Actions

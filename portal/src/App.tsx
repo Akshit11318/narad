@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SessionTimeoutWarning, useSessionTimeout } from './components/auth';
-import { Login, Register, Dashboard, Voting, Logout, Help } from './pages';
+import { Login, Register, Dashboard, Voting, Logout, Help, PublicVerification } from './pages';
 import { useAuth } from './hooks';
 import { ROUTES } from './utils/constants';
 
@@ -87,6 +87,9 @@ function AppContent() {
             </PublicRoute>
           } 
         />
+
+        {/* Public Verification Route */}
+        <Route path="/verify/:verificationCode?" element={<PublicVerification />} />
 
         {/* Protected Routes */}
         <Route 

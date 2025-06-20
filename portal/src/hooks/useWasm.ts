@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { loadWasmModule } from '../wasmModule';
-import { initializeWasm, initializeElection } from '../utils/crypto';
+import { loadWasmModule, setupElection } from '../wasmModule';
 import type { EncryptionModule, ElectionParams, WasmState } from '../types';
 
 export function useWasm() {
@@ -38,10 +37,8 @@ export function useWasm() {
       });
     }
 
-    setWasmState(prev => ({ ...prev, isLoading: true, error: null }));
-
-    try {
-      const module = await initializeWasm();
+    setWasmState(prev => ({ ...prev, isLoading: true, error: null }));    try {
+      const module = await loadWasmModule();
       
       setWasmState({
         module,
@@ -65,8 +62,7 @@ export function useWasm() {
       throw error;
     }
   }, [wasmState.module, wasmState.isLoading, wasmState.error]);
-
-  const setupElection = useCallback(async (): Promise<ElectionParams> => {
+  const setupElectionHook = useCallback(async (): Promise<ElectionParams> => {
     if (electionParams) {
       return electionParams;
     }
@@ -75,7 +71,7 @@ export function useWasm() {
       // Ensure WASM is loaded first
       await loadWasm();
       
-      const params = await initializeElection();
+      const params = await setupElection();
       setElectionParams(params);
       
       console.log('Election parameters setup successfully');
@@ -103,15 +99,14 @@ export function useWasm() {
       error: null,
     });
     setElectionParams(null);
-  }, []);
-  return {
+  }, []);  return {
     // State
     wasmState,
     electionParams,
     
     // Actions
     loadWasm,
-    setupElection,
+    setupElection: setupElectionHook,
     clearWasm,
     
     // Computed

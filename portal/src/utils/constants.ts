@@ -96,6 +96,7 @@ export const ROUTES = {
   VOTING: '/voting',
   LOGOUT: '/logout',
   HELP: '/help',
+  VERIFY: '/verify',
 } as const;
 
 export const ERROR_MESSAGES = {

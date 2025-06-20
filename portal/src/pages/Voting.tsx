@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../components/layout';
 import { Button } from '../components/ui';
-import { CandidateCard, VoteConfirmation } from '../components/voting';
-import { useAuth, useVoting, useWasm } from '../hooks';
+import { CandidateCard, VoteConfirmation, PublicVerificationDisplay } from '../components/voting';
+import { useAuth, useVoting, useWasm, useZKProof } from '../hooks';
 import { ROUTES } from '../utils/constants';
 import type { Candidate } from '../types';
 
@@ -15,13 +15,15 @@ export function Voting() {
   const { 
     candidates, 
     selectedCandidate, 
-    isSubmitting, 
+    isVoting, 
+    isLoading: votingLoading,
     hasVoted,
     loadCandidates, 
     selectCandidate, 
     submitVote 
   } = useVoting();
   const { isLoaded: wasmLoaded } = useWasm();
+  const { publicVerificationData } = useZKProof();
   
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,7 +70,6 @@ export function Voting() {
     setCurrentStep('confirmation');
     setShowConfirmation(true);
   };
-
   const handleConfirmVote = async () => {
     if (!selectedCandidate || !user) {
       toast.error('Missing required data for vote submission');
@@ -76,7 +77,7 @@ export function Voting() {
     }
 
     try {
-      await submitVote(selectedCandidate.id);
+      await submitVote();
       setCurrentStep('submitted');
       
       // Show success message and redirect after delay
@@ -196,7 +197,7 @@ export function Voting() {
                     candidate={candidate}
                     isSelected={selectedCandidate?.id === candidate.id}
                     onSelect={handleCandidateSelect}
-                    disabled={isSubmitting}
+                    disabled={isVoting}
                   />
                 ))}
               </div>
@@ -206,7 +207,7 @@ export function Voting() {
                 <Button
                   variant="outline"
                   onClick={() => navigate(ROUTES.DASHBOARD)}
-                  disabled={isSubmitting}
+                  disabled={isVoting}
                 >
                   Back to Dashboard
                 </Button>
@@ -214,48 +215,53 @@ export function Voting() {
                 <Button
                   variant="primary"
                   onClick={handleProceedToConfirmation}
-                  disabled={!selectedCandidate || isSubmitting}
+                  disabled={!selectedCandidate || isVoting}
                   className="min-w-[200px]"
                 >
                   Proceed to Confirmation
                 </Button>
               </div>
             </motion.div>
-          )}
-
-          {currentStep === 'submitted' && (
+          )}          {currentStep === 'submitted' && (
             <motion.div
               key="submitted"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5 }}
-              className="text-center py-12"
+              className="py-12"
             >
-              <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-8 max-w-md mx-auto">
-                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+              {publicVerificationData ? (
+                <PublicVerificationDisplay 
+                  verificationData={publicVerificationData}
+                  className="max-w-2xl mx-auto"
+                />
+              ) : (
+                <div className="text-center">
+                  <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-8 max-w-md mx-auto">
+                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Vote Submitted Successfully!</h3>
+                    <p className="text-gray-400 mb-4">
+                      Your vote has been encrypted and recorded with zero-knowledge proof verification.
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Redirecting to dashboard in a few seconds...
+                    </p>
+                  </div>
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2">Vote Submitted Successfully!</h3>
-                <p className="text-gray-400 mb-4">
-                  Your vote has been encrypted and recorded on the blockchain.
-                </p>
-                <p className="text-sm text-gray-500">
-                  Redirecting to dashboard in a few seconds...
-                </p>
-              </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Vote Confirmation Modal */}
-        <VoteConfirmation
+        {/* Vote Confirmation Modal */}        <VoteConfirmation
           isOpen={showConfirmation}
           onClose={handleBackToSelection}
           onConfirm={handleConfirmVote}
           candidate={selectedCandidate}
-          isSubmitting={isSubmitting}
         />
       </div>
     </Layout>
