@@ -98,6 +98,8 @@ export interface PublicParameters {
   systemEntropy: string; // Hex-encoded system entropy
   securityLevel: number; // Bit length (2048+)
   wasmBacked: boolean; // WASM-backed parameters
+  sessionId?: string; // Session identifier for parameter consistency
+  masterSeed?: string; // Master seed for deterministic parameter generation
 }
 
 export interface WasmProofMetadata {
@@ -213,6 +215,7 @@ export interface SingleGenerationProofVerificationResult {
 
 export const ProofGenerationStep = {
   INITIALIZING: 'initializing',
+  SESSION_INITIALIZED: 'session_initialized',
   GENERATING_KEYS: 'generating_keys',
   CREATING_COMMITMENTS: 'creating_commitments',
   GENERATING_RANGE_PROOFS: 'generating_range_proofs',

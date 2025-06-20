@@ -2,10 +2,26 @@ interface ZKProofSubmissionData {
   verificationCode: string;
   voterId: string;
   electionId: string;
-  commitments: any;
-  challenges: any;
-  responses: any;
-  publicParameters: any;
+  // Complete ZK proof data
+  zkProofData: {
+    id: string;
+    timestamp: number;
+    voterHash: string;
+    electionId: string;
+    rangeProof: any;
+    sumProof: any;
+    generationProof: any;
+    challenge: string;
+    response: any;
+    publicParameters: any;
+    wasmProofData: any;
+  };
+  // Public verification package
+  publicVerificationPackage: {
+    verificationPackage: any;
+    publicVerificationUrl: string;
+    qrCodeData: string;
+  };
   proofVersion?: string;
 }
 
@@ -24,7 +40,6 @@ interface ApiResponse<T = any> {
 
 class ZKProofApiService {
   private baseUrl = '/api/zkproof';
-
   async submitProof(proofData: ZKProofSubmissionData): Promise<ApiResponse> {
     try {
       const response = await fetch(`${this.baseUrl}/submit`, {
@@ -44,6 +59,30 @@ class ZKProofApiService {
       return result;
     } catch (error) {
       console.error('Error submitting ZK proof:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  async submitCompleteZKProof(
+    zkProofData: any,
+    publicVerificationPackage: any
+  ): Promise<ApiResponse> {
+    try {
+      const submissionData: ZKProofSubmissionData = {
+        verificationCode: zkProofData.verificationCode,
+        voterId: zkProofData.voterHash,
+        electionId: zkProofData.electionId,
+        zkProofData,
+        publicVerificationPackage,
+        proofVersion: zkProofData.wasmProofData.wasmModuleVersion
+      };
+
+      return await this.submitProof(submissionData);
+    } catch (error) {
+      console.error('Error submitting complete ZK proof:', error);
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred'
