@@ -20,7 +20,9 @@ export interface ZKProofData {
 
 export interface RangeProof {
   id: string;
-  commitments: string[]; // Hex-encoded Uint8Array commitments
+  voteCommitment?: string; // For individual range proof compatibility
+  auxiliaryCommitment?: string; // For individual range proof compatibility
+  commitments: string[]; // Hex-encoded Uint8Array commitments (for batch compatibility)
   bulletproofs: BulletproofData[];
   binaryConstraints: BinaryConstraintProof[];
   proofSize: number;
@@ -46,23 +48,37 @@ export interface BinaryConstraintProof {
 }
 
 export interface SumProof {
-  id: string;  sumCommitment: string; // Hex-encoded commitment to sum
-  sumProof: string; // Hex-encoded proof that sum equals 1
-  aggregatedCommitment: string; // Hex-encoded aggregated commitment
-  witness: string; // Hex-encoded witness
-  challenge: string; // Hex-encoded challenge
-  response: string; // Hex-encoded response
-  wasmComputed: boolean; // WASM computation flag
+  id: string;
+  aggregatedCommitment: string; // Hex-encoded aggregated commitment C_agg = Π Cᵢ
+  targetCommitment: string; // Hex-encoded target commitment C_sum = g¹ × h^s
+  witnessCommitment: string; // Hex-encoded witness commitment W = g^w
+  challenge: string; // Hex-encoded Fiat-Shamir challenge c
+  response: string; // Hex-encoded Schnorr response z = w + c × (Σrᵢ - s) mod q
+  sumBlindingFactors: string; // Hex-encoded sum of blinding factors Σrᵢ
+  targetBlindingFactor: string; // Hex-encoded target blinding factor s
+  expectedSum: number; // Expected sum value (should be 1 for votes)
+  timestamp: number; // Generation timestamp
+  wasmComputed?: boolean; // WASM computation flag (optional for compatibility)
 }
 
 export interface SingleGenerationProof {
   id: string;
-  keyDerivationProof: string; // Hex-encoded proof
-  timestampProof: string; // Hex-encoded timestamp proof
-  consistencyProof: string; // Hex-encoded consistency proof
-  generationHash: string; // Hex-encoded generation hash
-  nonce: string; // Hex-encoded nonce
-  wasmGenerated: boolean; // WASM generation flag
+  commitment: string; // Hex-encoded public commitment A = g^k mod p
+  challenge: string; // Hex-encoded Fiat-Shamir challenge c = H(g || y || A)
+  response: string; // Hex-encoded response s = k + cx mod q
+  publicKey: string; // Hex-encoded public key y = g^x mod p
+  voterHash: string; // Hex-encoded voter hash (derived from secret key)
+  electionId: string; // Election identifier
+  systemEntropy: string; // System entropy for uniqueness
+  timestamp: number; // Generation timestamp
+  metadata?: GenerationProofMetadata; // Proof metadata (optional for compatibility)
+  // Legacy fields for backward compatibility
+  keyDerivationProof?: string; // Hex-encoded proof
+  timestampProof?: string; // Hex-encoded timestamp proof  
+  consistencyProof?: string; // Hex-encoded consistency proof
+  generationHash?: string; // Hex-encoded generation hash
+  nonce?: string; // Hex-encoded nonce
+  wasmGenerated?: boolean; // WASM generation flag
 }
 
 export interface ChallengeResponse {
@@ -135,6 +151,66 @@ export interface VerificationResult {
   wasmMetadata: WasmProofMetadata;
 }
 
+export interface GenerationProofMetadata {
+  /** Cryptographic parameters used */
+  parameters: {
+    generator: string; // Hex-encoded generator g
+    modulus: string; // Hex-encoded modulus p
+    order: string; // Hex-encoded order q
+  };
+  /** Security and performance metrics */
+  securityLevel: number; // Bit length of parameters
+  computationTime: number; // Generation time in milliseconds
+  /** WASM-specific metadata */
+  wasmVersion: string; // WASM module version
+  wasmOperations: number; // Number of WASM operations performed
+}
+
+export interface SumProofVerificationResult {
+  /** Whether the proof is valid */
+  isValid: boolean;
+  /** Whether aggregated commitment is correct */
+  aggregationValid: boolean;
+  /** Whether target commitment is correct */
+  targetValid: boolean;
+  /** Whether Schnorr proof is valid */
+  schnorrValid: boolean;
+  /** Verification timestamp */
+  timestamp: number;
+  /** Error message if verification failed */
+  error?: string;
+}
+
+export interface RangeProofVerificationResult {
+  /** Whether all range proofs are valid */
+  isValid: boolean;
+  /** Individual proof validation results */
+  individualResults: {
+    position: number;
+    isValid: boolean;
+    error?: string;
+  }[];
+  /** Batch verification timestamp */
+  timestamp: number;
+  /** Error message if batch verification failed */
+  error?: string;
+}
+
+export interface SingleGenerationProofVerificationResult {
+  /** Whether the proof is valid */
+  isValid: boolean;
+  /** Whether commitment verification passed */
+  commitmentValid: boolean;
+  /** Whether challenge verification passed */
+  challengeValid: boolean;
+  /** Whether response verification passed */
+  responseValid: boolean;
+  /** Verification timestamp */
+  timestamp: number;
+  /** Error message if verification failed */
+  error?: string;
+}
+
 export const ProofGenerationStep = {
   INITIALIZING: 'initializing',
   GENERATING_KEYS: 'generating_keys',
@@ -157,3 +233,76 @@ export const VerificationStatus = {
 } as const;
 
 export type VerificationStatus = typeof VerificationStatus[keyof typeof VerificationStatus];
+
+// =============================================================================
+// IMPLEMENTATION-SPECIFIC TYPES
+// =============================================================================
+
+export interface CommitmentParameters {
+  /** Generator g (hex-encoded) */
+  g: string;
+  /** Generator h (hex-encoded) */  
+  h: string;
+  /** Prime modulus p (hex-encoded) */
+  p: string;
+  /** Prime order q (hex-encoded) */
+  q: string;
+  /** Security level in bits */
+  securityLevel: number;
+}
+
+export interface PedersenCommitment {
+  /** Commitment value C = g^v × h^r mod p */
+  commitment: string;
+  /** Committed value v */
+  value: number;
+  /** Blinding factor r */
+  blindingFactor: string;
+  /** Hex-encoded commitment for serialization */
+  commitmentHex: string;
+}
+
+export interface DeterministicKeys {
+  /** Secret key (hex-encoded) */
+  secretKey: string;
+  /** Public key y = g^x mod p (hex-encoded) */
+  publicKey: string;
+  /** Voter hash for privacy (hex-encoded) */
+  voterHash: string;
+  /** Election-specific entropy (hex-encoded) */
+  electionEntropy: string;
+}
+
+export interface RangeProofBatch {
+  /** Array of individual range proofs */
+  proofs: IndividualRangeProof[];
+  /** Batch proof identifier */
+  batchId: string;
+  /** Number of proofs in batch */
+  batchSize: number;
+  /** Batch generation timestamp */
+  timestamp: number;
+  /** Batch verification result */
+  batchValid?: boolean;
+}
+
+export interface IndividualRangeProof {
+  /** Unique proof identifier */
+  id: string;
+  /** Original vote commitment Cᵢ = g^vᵢ × h^rᵢ */
+  voteCommitment: string;
+  /** Auxiliary commitment Dᵢ = g^(vᵢ-1) × h^sᵢ */
+  auxiliaryCommitment: string;
+  /** Witness commitment W = g^w */
+  witnessCommitment: string;
+  /** Fiat-Shamir challenge c */
+  challenge: string;
+  /** Response z = w + c × (vᵢ × sᵢ + rᵢ × (vᵢ-1)) mod q */
+  response: string;
+  /** Auxiliary blinding factor sᵢ */
+  auxiliaryBlindingFactor: string;
+  /** Vote value being proven (0 or 1) */
+  voteValue: number;
+  /** Generation timestamp */
+  timestamp: number;
+}

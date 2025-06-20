@@ -51,7 +51,8 @@ export const UI_CONSTANTS = {
 
 export const CANDIDATE_CONFIG = {
   TOTAL_CANDIDATES: 4,
-  DEFAULT_PHOTO: '/assets/default-candidate.jpg',
+  MAX_SELECTIONS: 1,
+  MIN_SELECTIONS: 1,
 } as const;
 
 export const THEME_COLORS = {
@@ -100,16 +101,17 @@ export const ROUTES = {
 } as const;
 
 export const ERROR_MESSAGES = {
-  NETWORK_ERROR: 'Network error. Please check your connection.',
-  UNAUTHORIZED: 'Invalid credentials. Please try again.',
-  FORBIDDEN: 'You do not have permission to perform this action.',
-  SERVER_ERROR: 'Server error. Please try again later.',
-  VALIDATION_ERROR: 'Please check your input and try again.',
-  WASM_LOAD_ERROR: 'Failed to load encryption module.',
-  ENCRYPTION_ERROR: 'Failed to encrypt vote.',
-  VOTE_SUBMISSION_ERROR: 'Failed to submit vote.',
-  ALREADY_VOTED: 'You have already voted in this election.',
-  ELECTION_NOT_ACTIVE: 'Election is not currently active.',
+  ALREADY_VOTED: 'You have already voted in this election',
+  WASM_LOAD_ERROR: 'Failed to load cryptographic module',
+  ENCRYPTION_ERROR: 'Failed to encrypt vote',
+  VOTE_SUBMISSION_ERROR: 'Failed to submit vote',
+  ZK_PROOF_ERROR: 'Failed to generate zero-knowledge proof',
+  INVALID_CANDIDATE: 'Invalid candidate selection',
+  NETWORK_ERROR: 'Network connection error',
+  AUTHENTICATION_ERROR: 'Authentication failed',
+  INVALID_CREDENTIALS: 'Invalid voter credentials',
+  SERVER_ERROR: 'Server error occurred',
+  VALIDATION_ERROR: 'Validation failed',
 } as const;
 
 export const DEMO_CREDENTIALS = {

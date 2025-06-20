@@ -183,3 +183,107 @@ export function formatValidationErrors(errors: ValidationError[]): Record<string
     return acc;
   }, {} as Record<string, string>);
 }
+
+// =============================================================================
+// ZK PROOF VALIDATION FUNCTIONS
+// =============================================================================
+
+/**
+ * Performs security checks for ZK proof generation
+ */0
+ 
+export async function performSecurityChecks(
+  voterHash: string,
+  electionId: string
+): Promise<{
+  canProceed: boolean;
+  securityReport: {
+    recommendations: string[];
+    riskLevel: 'low' | 'medium' | 'high';
+  };
+}> {
+  // Basic security validation
+  const recommendations: string[] = [];
+  let riskLevel: 'low' | 'medium' | 'high' = 'low';
+
+  // Check voter hash format
+  if (!voterHash || voterHash.length < 32) {
+    recommendations.push('Voter hash is too short or invalid');
+    riskLevel = 'high';
+  }
+
+  // Check election ID format
+  if (!electionId || electionId.trim().length === 0) {
+    recommendations.push('Election ID is required');
+    riskLevel = 'high';
+  }
+
+  // Check for basic entropy
+  if (voterHash && voterHash === voterHash[0].repeat(voterHash.length)) {
+    recommendations.push('Voter hash lacks entropy');
+    riskLevel = 'medium';
+  }
+
+  return {
+    canProceed: riskLevel !== 'high',
+    securityReport: {
+      recommendations,
+      riskLevel,
+    },
+  };
+}
+
+/**
+ * Validates if a ZK proof is ready for submission
+ */
+export async function validateProofSubmissionReadiness(
+  proof: any
+): Promise<{
+    isReady: boolean;
+    errors: string[];
+    warnings: string[];
+  }> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+  
+    // Check proof structure
+    if (!proof) {
+      errors.push('Proof is null or undefined');
+      return { isReady: false, errors, warnings };
+    }
+  
+    // Check required fields
+    if (!proof.id) {
+      errors.push('Proof ID is missing');
+    }
+  
+    if (!proof.rangeProof) {
+      errors.push('Range proof is missing');
+    }
+  
+    if (!proof.sumProof) {
+      errors.push('Sum proof is missing');
+    }
+  
+    if (!proof.generationProof) {
+      errors.push('Generation proof is missing');
+    }
+  
+    // Check timestamp
+    if (!proof.timestamp || proof.timestamp <= 0) {
+      errors.push('Invalid or missing timestamp');
+    }
+  
+    // Check WASM metadata
+    if (!proof.wasmProofData) {
+      warnings.push('WASM proof metadata is missing');
+    } else if (proof.wasmProofData.generationMethod !== 'pure-wasm') {
+      warnings.push('Proof was not generated using pure WASM');
+    }
+  
+    return {
+      isReady: errors.length === 0,
+      errors,
+      warnings,
+    };
+  }

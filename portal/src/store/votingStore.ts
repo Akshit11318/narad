@@ -6,13 +6,20 @@ import type {
   ElectionParams,
   EncryptionResult 
 } from '../types';
-import type { ZKProofData, ZKProofGenerationStatus, PublicVerificationData } from '../types/zkProof';
+import type { 
+  ZKProofData, 
+  ZKProofGenerationStatus, 
+  PublicVerificationData
+} from '../types/zkProof';
 import { loadWasmModule } from '../wasmModule';
-import { generateZKProof } from '../utils/zkProof';
+import { 
+  generateZKProof, 
+  verifyCompleteZKProofWithDetails,
+  generatePublicVerificationData 
+} from '../utils/zkProof';
 import { generateDeterministicKeys } from '../utils/deterministicKeyGen';
 import { generateCommitmentParameters } from '../utils/commitmentScheme';
-import { performSecurityChecks } from '../utils/securityChecks';
-import { validateProofSubmissionReadiness } from '../utils/proofValidation';
+import { performSecurityChecks, validateProofSubmissionReadiness } from '../utils/validation';
 import { zkProofApi } from '../utils/zkProofApi';
 import { CANDIDATE_CONFIG, API_ENDPOINTS, ERROR_MESSAGES } from '../utils/constants';
 import { submitVote, setupElection } from '../wasmModule';
@@ -433,13 +440,29 @@ export const useVotingStore = create<VotingStore>((set, get) => ({
       });
       throw error;
     }
-  },
-  verifyOwnProof: async (proof: ZKProofData): Promise<boolean> => {
+  },  verifyOwnProof: async (proof: ZKProofData): Promise<boolean> => {
     try {
+      console.log('🔍 Starting detailed proof verification...');
       const validation = await validateProofSubmissionReadiness(proof);
-      return validation.isReady;
+      
+      if (!validation.isReady) {
+        console.log('❌ Proof failed readiness validation:', validation.errors);
+        return false;
+      }
+      
+      // Use enhanced verification with detailed logging
+      const verificationResult = await verifyCompleteZKProofWithDetails(proof);
+      
+      // Generate public verification data for transparency
+      const publicData = await generatePublicVerificationData(proof);
+      console.log('📦 Public verification data generated:', {
+        url: publicData.publicVerificationUrl,
+        qrCodeLength: publicData.qrCodeData.length
+      });
+      
+      return verificationResult.isValid;
     } catch (error) {
-      console.error('Proof verification failed:', error);
+      console.error('❌ Proof verification failed:', error);
       return false;
     }
   },
