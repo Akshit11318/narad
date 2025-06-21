@@ -114,19 +114,63 @@ class ZKProofApiService {
         message: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
-  }
-
-  async getPublicVerificationData(verificationCode: string): Promise<ApiResponse> {
+  }  async getPublicVerificationData(verificationCode: string): Promise<ApiResponse> {
     try {
+      console.log('Fetching verification data for code:', verificationCode);
       const response = await fetch(`${this.baseUrl}/public/${verificationCode}`);
       
       const result = await response.json();
+      console.log('Backend response:', result);
       
       if (!response.ok) {
-        throw new Error(result.message || 'Failed to fetch verification data');
+        throw new Error(result.error || result.message || 'Failed to fetch verification data');
       }
 
-      return result;
+      // The backend returns nested data structure:
+      // publicVerificationPackage.verificationPackage contains the actual proof data
+      const publicPackage = result.publicVerificationPackage || {};
+      const verificationPackage = publicPackage.verificationPackage || {};
+      
+      // Extract QR code data
+      let qrCodeData = null;
+      if (publicPackage.qrCodeData) {
+        try {
+          const qrData = JSON.parse(publicPackage.qrCodeData);
+          qrCodeData = qrData; // Return the parsed QR data
+        } catch {
+          qrCodeData = publicPackage.qrCodeData; // If not JSON, return as string
+        }
+      }
+      
+      // Transform the response to match expected PublicVerificationData format
+      return {
+        success: true,
+        data: {
+          verificationCode: result.verificationCode,
+          electionId: result.electionId,
+          timestamp: result.timestamp,
+          verificationUrl: publicPackage.publicVerificationUrl || `${window.location.origin}/verify/${result.verificationCode}`,
+          qrCode: qrCodeData,
+          publicParameters: verificationPackage.publicParameters,
+          wasmVerified: verificationPackage.wasmMetadata?.wasmBacked || false,
+          // Additional proof data for detailed verification
+          publicVerificationPackage: {
+            proof: {
+              rangeProofCommitments: verificationPackage.rangeProofCommitments || [],
+              sumProofAggregatedCommitment: verificationPackage.sumProofAggregatedCommitment,
+              sumProofTargetCommitment: verificationPackage.sumProofTargetCommitment,
+              sumProofChallenge: verificationPackage.sumProofChallenge,
+              generationProofCommitment: verificationPackage.generationProofCommitment,
+              generationProofChallenge: verificationPackage.generationProofChallenge,
+              generationProofPublicKey: verificationPackage.generationProofPublicKey,
+              challengeResponse: verificationPackage.challengeResponse
+            },
+            publicInputs: verificationPackage.publicParameters || {},
+            verificationInstructions: verificationPackage.verificationInstructions || {},
+            wasmMetadata: verificationPackage.wasmMetadata || {}
+          }
+        }
+      };
     } catch (error) {
       console.error('Error fetching public verification data:', error);
       return {

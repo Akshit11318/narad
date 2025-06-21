@@ -37,10 +37,8 @@ import type {
 import type { DeterministicKeys } from './deterministicKeyGen';
 
 // Import protocol implementations
-import { 
-  generateCommitmentParameters,
-  type PedersenCommitment 
-} from './commitmentScheme';
+import { generateCommitmentParameters } from './commitmentScheme';
+import type { PedersenCommitment } from '../types/commitment';
 
 import { 
   generateSumProof, 

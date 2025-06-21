@@ -1,81 +1,15 @@
 /**
  * WASM-Only Cryptographic Module for Zero-Knowledge Voting
  * Pure Uint8Array operations with production-level security
- * No BigInt fallbacks or legacy code - 100% WASM-backed operations
  */
+
+import type { EncryptionModule } from './types/wasm';
 
 // Declare the global window interface to include createEncryptionModule
 declare global {
   interface Window {
     createEncryptionModule: () => Promise<EncryptionModule>;
   }
-}
-
-interface EncryptionModule {
-  _malloc(size: number): number;
-  _free(ptr: number): void;
-  _generate_secret_key(nPtr: number, nLength: number): number;
-  _compute_aggregator_public_key(
-    hPtr: number,
-    hLength: number,
-    skAPtr: number,
-    skALength: number,
-    nPtr: number,
-    nLength: number
-  ): number;
-  _compute_auxiliary_key(nPtr: number, nLength: number): number;
-  _pack_and_encrypt_votes(
-    votePtr: number,
-    voteLength: number,
-    nPtr: number,
-    nLength: number,
-    hPtr: number,
-    hLength: number,
-    resultPtr: number,
-    resultLength: number
-  ): number;
-  _get_secret_key(resultPtr: number, resultLength: number): number;
-  _get_aggregator_public_key(resultPtr: number, resultLength: number): number;
-  _get_auxiliary_key(resultPtr: number, resultLength: number): number;
-  _clear_crypto_params(): number;
-  _initialize_crypto_params(
-    nPtr: number,
-    nLength: number,
-    hPtr: number,
-    hLength: number
-  ): number;
-  
-  // ZKP BigInt Math Functions
-  _wasmmodexp(basePtr: number, baseLen: number, expPtr: number, expLen: number, 
-              modPtr: number, modLen: number, resultPtr: number, resultLen: number): number;
-  _wasmmodmul(aPtr: number, aLen: number, bPtr: number, bLen: number,
-              modPtr: number, modLen: number, resultPtr: number, resultLen: number): number;
-  _wasmmodadd(aPtr: number, aLen: number, bPtr: number, bLen: number,
-              modPtr: number, modLen: number, resultPtr: number, resultLen: number): number;
-  _wasmmodsub(aPtr: number, aLen: number, bPtr: number, bLen: number,
-              modPtr: number, modLen: number, resultPtr: number, resultLen: number): number;
-  _wasmmodinv(aPtr: number, aLen: number, modPtr: number, modLen: number,
-              resultPtr: number, resultLen: number): number;
-  _wasmcmp(aPtr: number, aLen: number, bPtr: number, bLen: number): number;
-  _wasmequal(aPtr: number, aLen: number, bPtr: number, bLen: number): number;
-  _wasmiszero(aPtr: number, aLen: number): number;
-  _wasmadd(aPtr: number, aLen: number, bPtr: number, bLen: number,
-           resultPtr: number, resultLen: number): number;
-  _wasmsub(aPtr: number, aLen: number, bPtr: number, bLen: number,
-           resultPtr: number, resultLen: number): number;
-  _wasmmul(aPtr: number, aLen: number, bPtr: number, bLen: number,
-           resultPtr: number, resultLen: number): number;
-  _wasmmod(aPtr: number, aLen: number, modPtr: number, modLen: number,
-           resultPtr: number, resultLen: number): number;
-  _wasmrand(resultPtr: number, resultLen: number, modPtr: number, modLen: number): number;
-  _wasmgcd(aPtr: number, aLen: number, bPtr: number, bLen: number,
-           resultPtr: number, resultLen: number): number;
-  _wasmfromhex(hexPtr: number, resultPtr: number, resultLen: number): number;
-  _wasmtohex(bigintPtr: number, bigintLen: number, hexPtr: number, strSize: number): number;
-  _wasmlen(bigintPtr: number, bigintLen: number): number;
-  _wasmcopy(srcPtr: number, srcLen: number, destPtr: number, destLen: number): number;
-  
-  HEAPU8: Uint8Array;
 }
 
 let wasmModule: EncryptionModule | null = null;
@@ -623,9 +557,6 @@ export async function initCryptoParams(
   }
 }
 
-
-
-
 /**
  * Fetch election parameters from the backend
  * @returns Object containing the fetched parameters (n, h, ska)
@@ -685,39 +616,6 @@ export async function setupElection(): Promise<{
 
     // Initialize crypto with fetched parameters
     await initCryptoParams(params.n, params.h);
-
-    // Generate random SKA key
-    // const result = await generateSecretKey(params.n);
-    // if (result !== 0) {
-    //   throw new Error(`Failed to generate SKA key: ${result}`);
-    // }
-
-    // // Get the generated secret key
-    // const ska = await getSecretKey();
-    // console.log("Generated SKA key:", formatByteArray(ska));
-
-    // // Update SKA in backend
-    // const backendUrl =
-    //   import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
-    // const response = await fetch(`${backendUrl}/api/user/params/ska`, {
-    //   method: "PUT",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //   },
-    //   body: JSON.stringify({
-    //     skA: Array.from(ska)
-    //       .map((b) => b.toString(16).padStart(2, "0"))
-    //       .join(""),
-    //   }),
-    // });
-
-    // if (!response.ok) {
-    //   throw new Error(
-    //     `Failed to update SKA in backend: ${response.statusText}`
-    //   );
-    // }
-
-    // return { n: params.n, h: params.h, ska: ska };
     return { n: params.n, h: params.h, ska: params.ska };
   } catch (error) {
     console.error("Failed to setup election:", error);
@@ -869,14 +767,6 @@ export async function submitVote(
     console.error("Error in submitVote:", error);
     throw error;
   }
-
-  // // Step 3: Now compute the auxiliary key (aux_i = pk_A^sk_i)
-
-  // // Create a vote array initialized with zeros and set the selected candidate's position to 1
-
-  // // Get the backend URL from environment or use default
-
-  return null;
 }
 
 // ======================================

@@ -28,7 +28,7 @@
  * 4. Compute response: z = w + c × (vᵢ × sᵢ + rᵢ × (vᵢ-1)) mod q
  */
 
-import type { CommitmentParameters, PedersenCommitment } from './commitmentScheme';
+import type { CommitmentParameters, PedersenCommitment } from '../types/commitment';
 import { 
   modExp, 
   getSecureRandom, 

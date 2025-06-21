@@ -121,11 +121,11 @@ export interface WasmProofMetadata {
 export interface PublicVerificationData {
   verificationCode: string; // Hex-encoded verification code
   electionId: string;
-  timestamp: number;
-  publicParameters: PublicParameters;
-  verificationUrl: string;
-  qrCode?: string;
-  wasmVerified: boolean; // WASM verification status
+  timestamp: string; // ISO timestamp string
+  verificationUrl: string; // URL for public verification
+  qrCode?: string; // QR code data for mobile verification
+  publicParameters?: PublicParameters; // Optional public parameters
+  wasmVerified?: boolean; // WASM verification status
 }
 
 export interface ZKProofGenerationStatus {
@@ -254,7 +254,7 @@ export interface CommitmentParameters {
   securityLevel: number;
 }
 
-export interface PedersenCommitment {
+export interface ZKPedersenCommitment {
   /** Commitment value C = g^v × h^r mod p */
   commitment: string;
   /** Committed value v */

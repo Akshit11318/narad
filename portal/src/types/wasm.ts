@@ -31,6 +31,37 @@ export interface EncryptionModule {
     hPtr: number,
     hLength: number
   ): number;
+  
+  // ZKP BigInt Math Functions
+  _wasmmodexp(basePtr: number, baseLen: number, expPtr: number, expLen: number, 
+              modPtr: number, modLen: number, resultPtr: number, resultLen: number): number;
+  _wasmmodmul(aPtr: number, aLen: number, bPtr: number, bLen: number,
+              modPtr: number, modLen: number, resultPtr: number, resultLen: number): number;
+  _wasmmodadd(aPtr: number, aLen: number, bPtr: number, bLen: number,
+              modPtr: number, modLen: number, resultPtr: number, resultLen: number): number;
+  _wasmmodsub(aPtr: number, aLen: number, bPtr: number, bLen: number,
+              modPtr: number, modLen: number, resultPtr: number, resultLen: number): number;
+  _wasmmodinv(aPtr: number, aLen: number, modPtr: number, modLen: number,
+              resultPtr: number, resultLen: number): number;
+  _wasmcmp(aPtr: number, aLen: number, bPtr: number, bLen: number): number;
+  _wasmequal(aPtr: number, aLen: number, bPtr: number, bLen: number): number;
+  _wasmiszero(aPtr: number, aLen: number): number;
+  _wasmadd(aPtr: number, aLen: number, bPtr: number, bLen: number,
+           resultPtr: number, resultLen: number): number;
+  _wasmsub(aPtr: number, aLen: number, bPtr: number, bLen: number,
+           resultPtr: number, resultLen: number): number;
+  _wasmmul(aPtr: number, aLen: number, bPtr: number, bLen: number,
+           resultPtr: number, resultLen: number): number;
+  _wasmmod(aPtr: number, aLen: number, modPtr: number, modLen: number,
+           resultPtr: number, resultLen: number): number;
+  _wasmrand(resultPtr: number, resultLen: number, modPtr: number, modLen: number): number;
+  _wasmgcd(aPtr: number, aLen: number, bPtr: number, bLen: number,
+           resultPtr: number, resultLen: number): number;
+  _wasmfromhex(hexPtr: number, resultPtr: number, resultLen: number): number;
+  _wasmtohex(bigintPtr: number, bigintLen: number, hexPtr: number, strSize: number): number;
+  _wasmlen(bigintPtr: number, bigintLen: number): number;
+  _wasmcopy(srcPtr: number, srcLen: number, destPtr: number, destLen: number): number;
+  
   HEAPU8: Uint8Array;
 }
 

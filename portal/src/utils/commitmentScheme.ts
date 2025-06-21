@@ -28,45 +28,11 @@ import {
   hexToBytes 
 } from './cryptoUtils';
 import { wasmModMul } from '../wasmModule';
-
-// =============================================================================
-// TYPE DEFINITIONS
-// =============================================================================
-
-export interface CommitmentParameters {
-  /** Generator g - public parameter */
-  g: string;
-  /** Generator h - public parameter */  
-  h: string;
-  /** Prime modulus p - public parameter */
-  p: string;
-  /** Prime order q - public parameter */
-  q: string;
-  /** Seed for deterministic generation */
-  generationSeed: string;
-}
-
-export interface PedersenCommitment {
-  /** Commitment value C = g^v × h^r mod p */
-  commitment: string;
-  /** Blinding factor r (kept secret) */
-  blindingFactor: string;
-  /** Committed value v */
-  value: number;
-  /** Verification proof */
-  proof: CommitmentProof;
-}
-
-export interface CommitmentProof {
-  /** Proof identifier */
-  id: string;
-  /** Challenge value from Fiat-Shamir */
-  challenge: string;
-  /** Response to challenge */
-  response: string;
-  /** Timestamp of generation */
-  timestamp: number;
-}
+import type { 
+  CommitmentParameters, 
+  PedersenCommitment, 
+  CommitmentProof 
+} from '../types/commitment';
 
 // =============================================================================
 // COMMITMENT PARAMETER GENERATION
