@@ -26,8 +26,7 @@ const candidates = [
     name: "Carol Davis",
     photo: "/assets/candidate3.svg",
     party: "Green Alliance",
-    description:
-      "Environmental advocate working for sustainable development.",
+    description: "Environmental advocate working for sustainable development.",
   },
   {
     id: 4,

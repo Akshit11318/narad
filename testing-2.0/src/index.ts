@@ -6,6 +6,7 @@ import { collectorRoutes } from "./routes/collectorRoutes";
 import { aggregatorRoutes } from "./routes/aggregatorRoutes";
 import { userRoutes } from "./routes/userRoutes";
 import { zkProofRoutes } from "./routes/zkProofRoutes";
+import { blockchainRoutes } from "./routes/blockchainRoutes";
 import prisma from "./prisma";
 
 // Load environment variables
@@ -28,6 +29,7 @@ app.use("/api/collector", collectorRoutes);
 app.use("/api/aggregator", aggregatorRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/zkproof", zkProofRoutes);
+app.use("/api/blockchain", blockchainRoutes);
 
 // Health check endpoint
 app.get("/health", (_, res) => {
