@@ -1,6 +1,4 @@
 use anchor_lang::prelude::*;
-use num_bigint::BigUint;
-use num_traits::identities::One;  // For BigUint::from(1u32)
 
 
 declare_id!("izmYTzv6KBxCLTjcPqVgJGbrkAz82oTX5tsyKu6CDwQ");
@@ -18,41 +16,11 @@ pub mod voting_sys {
         election.total_candidates = total_candidates;
         // election.voter_whitelist = Vec::new();
         election.candidate_whitelist = Vec::new();
-        // // === 1. Generate N = p * q ===
-        // let mut rng = thread_rng();
-        // let p: BigUint = rng.gen_prime(256);
-        // let q: BigUint = rng.gen_prime(256);
-        
-        // Using a pre-computed  N value
-        //  115792089237316195423570985008687907853269984665640564039457584007913129639991
-        let n_bytes: [u8; 64] = [
-            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC9, 0x0F, 0xDA, 0xA2, 0x21, 0x68, 0xC2, 0x34,
-            0xC4, 0xC6, 0x62, 0x8B, 0x80, 0xDC, 0x1C, 0xD1, 0x29, 0x02, 0x4E, 0x08, 0x8A, 0x67, 0xCC, 0x74,
-            0x02, 0x0B, 0xBE, 0xA6, 0x3B, 0x13, 0x9B, 0x22, 0x51, 0x4A, 0x08, 0x79, 0x8E, 0x34, 0x04, 0xDD,
-            0xEF, 0x95, 0x19, 0xB3, 0xCD, 0x3A, 0x43, 0x1B, 0x30, 0x2B, 0x0A, 0x6D, 0xF2, 0x5F, 0x14, 0x37
-        ];
-
-        let n = BigUint::from_bytes_be(&n_bytes);
-        let n_squared = &n * &n;
-        election.n = n_bytes.to_vec();
-
-        // === 2. Hash the constant seed ===
-        let h_raw_bytes = H_CONST;
-
-        // === 3. Convert hash to BigUint and ensure it's coprime to n² ===
-        let h_biguint = BigUint::from_bytes_be(&h_raw_bytes);
-        let mut h_mod_n2 = h_biguint % &n_squared;
-        
-        // Keep incrementing h until we find a coprime value
-
-        let one = BigUint::from(1u32);
-        while (&h_mod_n2 % &n_squared) != one {
-           h_mod_n2 += &one;
-           h_mod_n2 = h_mod_n2 % &n_squared;
-         }
-
-        // === 5. Store coprime h ===
-        election.h = h_mod_n2.to_bytes_be();
+        election.n = String::from("a94337c30ddffe19568c42e4865e088c756e023111e305c8e7454e6ef12fd85e99c68e306cd6a6945e78915d1aba494ae575fa174a82abd4c2c7c66dd2982a6a");
+        election.h = String::from("d5fe5496895615b93b7bd501f94c390bdb942bf41ab18d1917dfd3aefc1e1952f23f4504700b5eeec7186bc6dec990db64b9ea1eadce566e21b6f8429565cc0");
+        election.ska = String::from("d5fe5496895615b93b7bd501f94c390bdb942bf41ab18d1917dfd3aefc1e1952f23f4504700b5eeec7186bc6dec990db64b9ea1eadce566e21b6f8429565cc0");
+        election.collector_pkc = String::from("0");
+        election.auxt = String::from("0");
 
         Ok(())
     }
@@ -62,16 +30,22 @@ pub mod voting_sys {
         election.stage = new_stage;
         Ok(())
     }
-    pub fn addska(ctx: Context<ChangeStage>, ska: Vec<u8>) -> Result<()> {
+    pub fn addska(ctx: Context<ChangeStage>, ska: String) -> Result<()> {
         let election = &mut ctx.accounts.election_data;
         require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
         election.ska = ska;
         Ok(())
     }
-    pub fn addauxt(ctx: Context<ChangeStage>, auxt: Vec<u8>) -> Result<()> {
+    pub fn addauxt(ctx: Context<ChangeStage>, auxt: String) -> Result<()> {
         let election = &mut ctx.accounts.election_data;
         require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
         election.auxt = auxt;
+        Ok(())
+    }
+    pub fn addcollectorpkc(ctx: Context<ChangeStage>, collector_pkc: String) -> Result<()> {
+        let election = &mut ctx.accounts.election_data;
+        require!(election.stage == ElectionStage::Application, VotingError::InvalidStage);
+        election.collector_pkc = collector_pkc;
         Ok(())
     }
     
@@ -97,7 +71,7 @@ pub mod voting_sys {
 
     
 
-    pub fn vote(ctx: Context<Vote>, voter_id: String,voter_ci: Vec<u8>) -> Result<()> {
+    pub fn vote(ctx: Context<Vote>, voter_id: String, voter_ci: String) -> Result<()> {
         let election = &mut ctx.accounts.election_data;
         let voter = &mut ctx.accounts.voter_data;
         // TODO implement slot paking
@@ -107,30 +81,25 @@ pub mod voting_sys {
         // require!(election.voter_whitelist.contains(&voter_id), VotingError::NotWhitelisted);
         require!(voter.voted == false, VotingError::AlreadyVoted);
 
-        
-
+        voter.cyphertext = voter_ci;
+        voter.voted = true;
         Ok(())
     }
 
-    pub fn sync_collector_pkc(ctx: Context<SyncCollectorPkc>, collector_pkc: Vec<u8>) -> Result<()> {
+    pub fn sync_collector_pkc(ctx: Context<SyncCollectorPkc>, collector_pkc: String) -> Result<()> {
         let election = &mut ctx.accounts.election_data;
         election.collector_pkc = collector_pkc;
         Ok(()) 
     }
 }
-pub const H_CONST: [u8; 32] = [
-    0x0b, 0x54, 0xc4, 0x2d, 0x86, 0x12, 0x6e, 0x72,
-    0x3d, 0x9b, 0xf2, 0x83, 0xae, 0x62, 0xf0, 0x5e,
-    0x88, 0x45, 0x1e, 0xa2, 0xbc, 0x66, 0x48, 0x37,
-    0x3a, 0xd6, 0x8a, 0x0f, 0x1a, 0x8a, 0x06, 0xc1
-];
+
 #[derive(Accounts)]
 #[instruction(total_votes: u64, total_candidates: u64)]  // Changed from usize to u64
 pub struct CreateElection<'info> {
     #[account(
         init,
         payer = signer,
-        space = 8 + 1 + 32 + 8 + (4 + 32 * total_candidates as usize) + 64 + 32 + 128 + 128 + 128,
+        space = 8 + 1 + 32 + 8 + (4 + 32 * total_candidates as usize) + 64*5,
     )]
     pub election_data: Account<'info, ElectionData>,
     #[account(mut)]
@@ -155,7 +124,7 @@ pub struct ModifyWhitelist<'info> {
 
 
 #[derive(Accounts)]
-#[instruction(voter_id: String, candidate_name: String)]
+#[instruction(voter_id: String)]
 pub struct Vote<'info> {
     #[account(mut)]
     pub election_data: Account<'info, ElectionData>,
@@ -188,20 +157,21 @@ pub struct ElectionData {
     pub total_candidates: u64,
     
     pub candidate_whitelist: Vec<String>,
-    pub n: Vec<u8>,
-    pub h: Vec<u8>,
-    pub ska: Vec<u8>,
-    pub collector_pkc: Vec<u8>,
-    pub auxt: Vec<u8>,
+    pub n: String,
+    pub h: String,
+    pub ska: String,
+    pub collector_pkc: String,
+    pub auxt: String,
 }
 
 #[account]
 pub struct VoterData {
     pub voted: bool,
+    pub cyphertext: String,
 }
 
 impl VoterData {
-    pub const MAX_SIZE: usize = 1; // voted (1 byte)
+    pub const MAX_SIZE: usize = 1+64; // voted (1 byte)
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
