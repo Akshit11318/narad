@@ -309,3 +309,167 @@ export interface IndividualRangeProof {
   /** Generation timestamp */
   timestamp: number;
 }
+
+/**
+ * Third-Party Verification Types
+ */
+
+export interface ThirdPartyVerificationPackage {
+  /** Public cryptographic parameters safe for sharing */
+  publicParameters: {
+    g: string;    // Generator g (hex-encoded)
+    h: string;    // Generator h (hex-encoded)
+    p: string;    // Prime modulus (hex-encoded)
+    q: string;    // Prime order (hex-encoded)
+  };
+  
+  /** Complete ZK proof data for verification */
+  zkProofData: ZKProofData;
+  
+  /** Range proof commitments for independent verification */
+  rangeProofCommitments: string[];
+  
+  /** Sum proof components for verification */
+  sumProofData: {
+    targetCommitment: string;
+    witnessCommitment: string;
+    response: string;
+  };
+  
+  /** Generation proof components for verification */
+  generationProofData: {
+    publicKey: string;
+    commitment: string;
+    response: string;
+  };
+  
+  /** Challenge-response data for Fiat-Shamir verification */
+  challengeResponse: {
+    challenge: string;
+    nonce: string;
+    fiatShamirHash: string;
+    context: string;
+  };
+  
+  /** Verification metadata */
+  verificationCode: string;
+  electionId: string;
+  timestamp: number;
+}
+
+export interface ThirdPartyVerificationResult {
+  /** Overall verification result */
+  isValid: boolean;
+  
+  /** Unique 8-character verification tag */
+  verificationTag: string;
+  
+  /** Verification timestamp */
+  timestamp: number;
+  
+  /** Detailed verification steps */
+  steps: VerificationStep[];
+  
+  /** Original verification package */
+  package: ThirdPartyVerificationPackage;
+  
+  /** Calculated security level */
+  securityLevel: 'High' | 'Medium' | 'Low' | 'Unknown';
+  
+  /** Complete audit trail */
+  auditTrail: string[];
+  
+  /** Error message if verification failed */
+  error?: string;
+}
+
+export interface VerificationStep {
+  /** Step name */
+  name: string;
+  
+  /** Step result (pass/fail) */
+  result: boolean;
+  
+  /** Mathematical formula being verified */
+  formula: string;
+  
+  /** Step completion timestamp */
+  timestamp: number;
+  
+  /** Detailed explanation (optional) */
+  explanation?: string;
+  
+  /** Error details if step failed */
+  error?: string;
+
+  /** Mathematical calculation details */
+  calculation?: string;
+  
+  /** Input data for the calculation */
+  input?: string;
+  
+  /** Output result of the calculation */
+  output?: string;
+  
+  /** Type of mathematical operation */
+  operation?: string;
+  
+  /** Detailed mathematical parameters and values */
+  details?: {
+    [key: string]: any;
+  };
+  
+  /** Mathematical proof verification metadata */
+  mathematicalProof?: {
+    verified: boolean;
+    uniqueToHash: boolean;
+    computationTime: number;
+    securityLevel: number;
+  };
+}
+
+export interface MathematicalVerificationProgress {
+  /** Current step being processed */
+  currentStep: string;
+  
+  /** Progress percentage (0-100) */
+  progress: number;
+  
+  /** Steps completed so far */
+  completedSteps: VerificationStep[];
+  
+  /** Total steps to complete */
+  totalSteps: number;
+  
+  /** Whether verification is in progress */
+  isVerifying: boolean;
+  
+  /** Start time of verification */
+  startTime: number;
+  
+  /** Estimated completion time */
+  estimatedCompletion?: number;
+}
+
+export interface VerificationExportData {
+  /** Verification result */
+  result: ThirdPartyVerificationResult;
+  
+  /** Export format */
+  format: 'pdf' | 'json' | 'html' | 'csv';
+  
+  /** Export metadata */
+  metadata: {
+    exportedBy: string;
+    exportTime: number;
+    version: string;
+  };
+  
+  /** Human-readable summary */
+  summary: {
+    overallResult: 'VALID' | 'INVALID' | 'ERROR';
+    stepsSummary: string;
+    securityAssessment: string;
+    recommendations?: string[];
+  };
+}

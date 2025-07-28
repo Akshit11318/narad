@@ -35,8 +35,6 @@ import type {
   ProofGenerationStep
 } from '../types/zkProof';
 import type { DeterministicKeys } from './deterministicKeyGen';
-
-// Import protocol implementations
 import { generateCommitmentParameters } from './commitmentScheme';
 import type { PedersenCommitment } from '../types/commitment';
 

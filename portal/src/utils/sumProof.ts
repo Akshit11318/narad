@@ -26,7 +26,7 @@
  * 2. Check: g^z = W × (C_agg × C_sum^(-1))^c
  */
 
-import type { CommitmentParameters, PedersenCommitment } from './commitmentScheme';
+import type { CommitmentParameters, PedersenCommitment } from '../types/commitment';
 import { aggregateCommitments, createPedersenCommitment } from './commitmentScheme';
 import { 
   modExp, 
