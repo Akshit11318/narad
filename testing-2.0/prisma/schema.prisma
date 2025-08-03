@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "windows"]
 }
 
@@ -8,38 +8,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Table to store system parameters
 model SystemParams {
   id        Int      @id @default(autoincrement())
-  N         String   // Modulus N in hex
-  H         String   // Hash H in hex
-  skA       String?  // Aggregator's secret key in hex
+  N         String
+  H         String
+  skA       String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("system_params")
 }
 
-// Table to store voter data (ski, ci, auxi)
 model VoterData {
   id         Int      @id @default(autoincrement())
-  voterId    String   @unique // Unique identifier for the voter
-  ci         String   // Ciphertext in hex
-  auxi       String   // Auxiliary value in hex
+  voterId    String
+  ci         String?
+  auxi       String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  electionId String
+  email      String   @unique
+  password   String?
 
+  @@unique([voterId, electionId])
   @@map("voter_data")
 }
 
-// Table to store aggregated results
 model AggregatedResult {
   id           Int      @id @default(autoincrement())
-  aux          String?   // Final auxiliary value in hex
-  result       String   // Aggregated result in hex
-  decodedVotes String   // JSON string of decoded vote counts
+  aux          String?
+  result       String
+  decodedVotes String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  electionId   String   @unique
 
   @@map("aggregated_results")
 }

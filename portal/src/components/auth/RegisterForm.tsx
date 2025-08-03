@@ -3,22 +3,22 @@ import { motion } from "framer-motion";
 import { Button, Input } from "../ui";
 import { useAuth } from "../../contexts/AuthContext";
 import {
-  validateLoginForm,
+  validateRegisterForm,
   formatValidationErrors,
 } from "../../utils/validation";
-import type { LoginFormData } from "../../types";
+import type { RegisterData } from "../../types";
 
-interface LoginFormProps {
-  onSwitchToRegister?: () => void;
+interface RegisterFormProps {
+  onSwitchToLogin?: () => void;
 }
 
-export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
-  const { login, isLoading, error, clearError } = useAuth();
+export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
+  const { register, isLoading, error, clearError } = useAuth();
 
-  const [formData, setFormData] = useState<LoginFormData>({
+  const [formData, setFormData] = useState<RegisterData>({
     email: "",
     password: "",
-    rememberMe: false,
+    confirmPassword: "",
   });
 
   const [validationErrors, setValidationErrors] = useState<
@@ -26,12 +26,9 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   >({});
 
   const handleInputChange =
-    (field: keyof LoginFormData) =>
+    (field: keyof RegisterData) =>
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const value =
-        event.target.type === "checkbox"
-          ? event.target.checked
-          : event.target.value;
+      const value = event.target.value;
 
       setFormData((prev) => ({
         ...prev,
@@ -56,11 +53,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     event.preventDefault();
 
     // Validate form
-    const errors = validateLoginForm({
-      email: formData.email,
-      password: formData.password,
-      rememberMe: formData.rememberMe,
-    });
+    const errors = validateRegisterForm(formData);
 
     if (errors.length > 0) {
       setValidationErrors(formatValidationErrors(errors));
@@ -68,14 +61,14 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     }
 
     try {
-      await login({
+      await register({
         email: formData.email,
         password: formData.password,
-        rememberMe: formData.rememberMe,
+        confirmPassword: formData.confirmPassword,
       });
     } catch (error) {
       // Error is handled by the useAuth hook
-      console.error("Login failed:", error);
+      console.error("Registration failed:", error);
     }
   };
 
@@ -99,7 +92,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               animate={{ scale: 1 }}
               transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
             >
-              <div className="w-10 h-10 mx-auto bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 mx-auto bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
                 <svg
                   className="w-5 h-5 text-white flex-shrink-0"
                   fill="none"
@@ -111,14 +104,18 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
                   />
                 </svg>
               </div>
             </motion.div>
 
-            <h2 className="text-xl font-bold text-white mb-1">Welcome Back</h2>
-            <p className="text-gray-400 text-sm">Sign in to cast your vote</p>
+            <h2 className="text-xl font-bold text-white mb-1">
+              Create Account
+            </h2>
+            <p className="text-gray-400 text-sm">
+              Register to participate in voting
+            </p>
           </div>
 
           {/* Global Error */}
@@ -180,7 +177,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               value={formData.password}
               onChange={handleInputChange("password")}
               error={validationErrors.password}
-              placeholder="Enter your password"
+              placeholder="Create a secure password"
               showPasswordToggle
               leftIcon={
                 <svg
@@ -200,22 +197,31 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               required
             />
 
-            {/* Remember Me */}
-            <div className="flex items-center">
-              <input
-                id="rememberMe"
-                type="checkbox"
-                checked={formData.rememberMe}
-                onChange={handleInputChange("rememberMe")}
-                className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-              />
-              <label
-                htmlFor="rememberMe"
-                className="ml-2 text-sm text-gray-300"
-              >
-                Remember me
-              </label>
-            </div>
+            <Input
+              label="Confirm Password"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={handleInputChange("confirmPassword")}
+              error={validationErrors.confirmPassword}
+              placeholder="Confirm your password"
+              showPasswordToggle
+              leftIcon={
+                <svg
+                  className="w-4 h-4 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                  />
+                </svg>
+              }
+              required
+            />
 
             {/* Submit Button */}
             <Button
@@ -225,33 +231,46 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               className="w-full"
               isLoading={isLoading}
             >
-              Sign In
+              Create Account
             </Button>
           </form>
 
           {/* Footer Links */}
           <div className="text-center space-y-2">
-            <button
-              type="button"
-              className="text-sm text-blue-400 hover:text-blue-300 transition-colors duration-200 block mx-auto"
-            >
-              Forgot credentials?
-            </button>
-
-            {onSwitchToRegister && (
+            {onSwitchToLogin && (
               <div>
                 <span className="text-gray-400 text-sm">
-                  Don't have an account?{" "}
+                  Already have an account?{" "}
                 </span>
                 <button
                   type="button"
-                  onClick={onSwitchToRegister}
+                  onClick={onSwitchToLogin}
                   className="text-sm text-blue-400 hover:text-blue-300 transition-colors duration-200 font-medium"
                 >
-                  Register here
+                  Sign in here
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Security Notice */}
+          <div className="p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+            <div className="flex items-center text-blue-400 text-xs">
+              <svg
+                className="w-4 h-4 mr-2 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                />
+              </svg>
+              <span>Your information is encrypted and stored securely</span>
+            </div>
           </div>
         </div>
       </div>

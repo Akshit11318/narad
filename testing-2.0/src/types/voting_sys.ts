@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/voting_sys.json`.
  */
 export type VotingSys = {
-  "address": "izmYTzv6KBxCLTjcPqVgJGbrkAz82oTX5tsyKu6CDwQ",
+  "address": "GuhBQikgkW5Pu6NLLVe6Xezh5iJjxr9YDdu4NzhnxM4m",
   "metadata": {
     "name": "votingSys",
     "version": "0.1.0",

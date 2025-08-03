@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 
 // Import the IDL
-const idl = require("../voting_sys.json");
+const idl = require("../../voting_sys.json");
 
 export class BlockchainService {
   private connection: Connection;
@@ -149,6 +149,30 @@ export class BlockchainService {
       return { success: true };
     } catch (error) {
       console.error("Error changing election stage:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get candidates for a specific election
+   */
+  async getCandidates(electionId: string) {
+    try {
+      const electionAccount = await (
+        this.program as any
+      ).account.electionData.fetch(new PublicKey(electionId));
+
+      const candidates = electionAccount.candidateWhitelist || [];
+
+      return candidates.map((candidateName: string, index: number) => ({
+        id: index + 1,
+        name: candidateName,
+        party: "Independent", // Default party since blockchain only stores names
+        description: `Candidate for election ${electionId}`,
+        photo: `/assets/candidate${(index % 4) + 1}.svg`, // Cycle through available assets
+      }));
+    } catch (error) {
+      console.error("Error fetching candidates:", error);
       throw error;
     }
   }

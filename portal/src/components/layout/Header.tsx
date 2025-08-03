@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
-import { useAuth } from '../../hooks';
+import { motion } from "framer-motion";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface HeaderProps {
   showUserInfo?: boolean;
@@ -7,7 +7,7 @@ interface HeaderProps {
 }
 
 export function Header({ showUserInfo = true, onHelpClick }: HeaderProps) {
-  const { user, logout } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
 
   return (
     <motion.header
@@ -35,7 +35,9 @@ export function Header({ showUserInfo = true, onHelpClick }: HeaderProps) {
 
             {/* Election Info */}
             <div className="hidden md:block pl-4 border-l border-gray-700">
-              <h2 className="text-sm font-medium text-white">General Election 2025</h2>
+              <h2 className="text-sm font-medium text-white">
+                General Election 2025
+              </h2>
               <p className="text-xs text-gray-400">Cast your vote securely</p>
             </div>
           </div>
@@ -50,7 +52,12 @@ export function Header({ showUserInfo = true, onHelpClick }: HeaderProps) {
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -61,58 +68,41 @@ export function Header({ showUserInfo = true, onHelpClick }: HeaderProps) {
               </motion.button>
             )}
 
-            {/* User Info and Logout */}
-            {showUserInfo && user && (
-              <div className="flex items-center space-x-3">
-                {/* User Avatar and Info */}
-                <div className="hidden sm:block text-right">
-                  <p className="text-sm font-medium text-white">{user.name}</p>
-                  <p className="text-xs text-gray-400">ID: {user.voterId}</p>
-                </div>
-
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-medium text-sm">
-                    {user.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-
-                {/* Logout Button */}
-                <motion.button
-                  onClick={logout}
-                  className="p-2 text-gray-400 hover:text-red-400 transition-colors duration-200 rounded-lg hover:bg-gray-800"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
-                  title="Logout"
+            {/* Logout Button */}
+            {showUserInfo && isAuthenticated && (
+              <motion.button
+                onClick={logout}
+                className="p-2 text-gray-400 hover:text-red-400 transition-colors duration-200 rounded-lg hover:bg-gray-800"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                title="Logout"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
-                </motion.button>
-              </div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
+                </svg>
+              </motion.button>
             )}
           </div>
         </div>
       </div>
 
       {/* Mobile User Info */}
-      {showUserInfo && user && (
+      {showUserInfo && isAuthenticated && (
         <div className="sm:hidden px-4 pb-3 border-t border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-white">{user.name}</p>
-              <p className="text-xs text-gray-400">Voter ID: {user.voterId}</p>
-            </div>
-            <div className="flex items-center space-x-2">
-              {user.hasVoted && (
-                <span className="px-2 py-1 bg-green-900 text-green-400 text-xs rounded-full">
-                  Voted
-                </span>
-              )}
+              <p className="text-sm font-medium text-white">Voter</p>
+              <p className="text-xs text-gray-400">Authenticated</p>
             </div>
           </div>
         </div>

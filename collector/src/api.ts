@@ -6,6 +6,7 @@ dotenv.config();
 
 // Define the API endpoint
 const API_URL = "http://localhost:3000/api/collector";
+const electionId = process.env.ELECTION_ID;
 
 /**
  * Fetch N and H parameters from the backend
@@ -32,15 +33,22 @@ export async function fetchNAndH(): Promise<{ N: string; H: string }> {
  */
 export async function fetchAuxiliaryValues(): Promise<string[]> {
   try {
-    console.log(`[*] Fetching auxiliary values from ${API_URL}/fetch-auxiliary`);
-    const response = await axios.get(`${API_URL}/fetch-auxiliary`, {
-      validateStatus: function (status) {
-        return status < 500; // Reject only if the status code is greater than or equal to 500
+    console.log(
+      `[*] Fetching auxiliary values from ${API_URL}/fetch-auxiliary`
+    );
+    const response = await axios.get(
+      `${API_URL}/fetch-auxiliary/${electionId}`,
+      {
+        validateStatus: function (status) {
+          return status < 500; // Reject only if the status code is greater than or equal to 500
+        },
       }
-    });
+    );
 
     if (!response.data || !Array.isArray(response.data.auxiliaryValues)) {
-      throw new Error('Invalid response format: auxiliaryValues not found or not an array');
+      throw new Error(
+        "Invalid response format: auxiliaryValues not found or not an array"
+      );
     }
 
     // Extract the auxi values from the response
@@ -48,7 +56,9 @@ export async function fetchAuxiliaryValues(): Promise<string[]> {
       (value: { voterId: string; auxi: string }) => value.auxi
     );
 
-    console.log(`[*] Successfully fetched ${auxiliaryValues.length} auxiliary values`);
+    console.log(
+      `[*] Successfully fetched ${auxiliaryValues.length} auxiliary values`
+    );
     return auxiliaryValues;
   } catch (error) {
     console.error(`[*] Error fetching auxiliary values:`, error);
@@ -64,7 +74,8 @@ export async function fetchAuxiliaryValues(): Promise<string[]> {
 export async function submitAuxiliaryProduct(product: string): Promise<any> {
   try {
     const response = await axios.post(`${API_URL}/aux`, {
-      aux:product,
+      electionId: electionId,
+      aux: product,
     });
     console.log(`[*] Successfully submitted auxiliary product`);
     return response.data;

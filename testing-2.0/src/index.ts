@@ -4,8 +4,8 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 import { collectorRoutes } from "./routes/collectorRoutes";
 import { aggregatorRoutes } from "./routes/aggregatorRoutes";
-import { userRoutes } from "./routes/userRoutes";
-import { zkProofRoutes } from "./routes/zkProofRoutes";
+import { voterRoutes } from "./routes/voterRoutes";
+
 import { blockchainRoutes } from "./routes/blockchainRoutes";
 import prisma from "./prisma";
 
@@ -27,8 +27,8 @@ app.use(express.json({ limit: "10mb" }));
 // Routes
 app.use("/api/collector", collectorRoutes);
 app.use("/api/aggregator", aggregatorRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/zkproof", zkProofRoutes);
+app.use("/api/voter", voterRoutes);
+
 app.use("/api/blockchain", blockchainRoutes);
 
 // Health check endpoint

@@ -1,2 +1,6 @@
-export { LoginForm } from './LoginForm';
-export { SessionTimeoutWarning, useSessionTimeout } from './SessionTimeoutWarning';
+export { LoginForm } from "./LoginForm";
+export { RegisterForm } from "./RegisterForm";
+export {
+  SessionTimeoutWarning,
+  useSessionTimeout,
+} from "./SessionTimeoutWarning";

@@ -1,23 +1,19 @@
 export interface User {
   id: string;
-  name: string;
   email: string;
-  phone?: string;
   voterId: string;
+  electionId: string;
   hasVoted: boolean;
 }
 
 export interface LoginCredentials {
-  voterId: string;
+  email: string;
   password: string;
   rememberMe?: boolean;
 }
 
 export interface RegisterData {
-  name: string;
   email: string;
-  phone: string;
-  voterId: string;
   password: string;
   confirmPassword: string;
 }
@@ -33,11 +29,10 @@ export interface AuthState {
 export interface AuthResponse {
   user: User;
   token: string;
-  refreshToken: string;
 }
 
 export interface LoginFormData {
-  voterId: string;
+  email: string;
   password: string;
   rememberMe: boolean;
 }

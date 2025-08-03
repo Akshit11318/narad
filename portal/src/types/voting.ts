@@ -9,11 +9,9 @@ export interface Candidate {
 export interface Vote {
   candidateId: number;
   voterId: string;
-  encryptedVote: string;
-  auxiliaryKey: string;
+  electionId: string;
   timestamp: Date;
-  transactionHash?: string;
-  zkProofId?: string; // Reference to ZK proof
+  transactionId?: string;
 }
 
 export interface VoteArray {
@@ -26,55 +24,42 @@ export interface VotingState {
   selectedCandidate: Candidate | null;
   isVoting: boolean;
   hasVoted: boolean;
-  encryptedVote: Uint8Array | null;  voteConfirmation: VoteConfirmation | null;
+  encryptedVote: Uint8Array | null;
+  voteConfirmation: VoteConfirmation | null;
   error: string | null;
   isLoading: boolean;
 }
 
-// Vote confirmation with ZK proof validation
+// Simplified vote confirmation
 export interface VoteConfirmation {
-  voterId: string;
+  candidateId: string;
   candidateName: string;
-  timestamp: Date;
-  transactionHash: string;
-  zkProofId: string;
-  verificationCode: string;
-  isZKProofValid: boolean;
-  zkProofSummary: {
-    rangeProofValid: boolean;
-    sumProofValid: boolean;
-    generationProofValid: boolean;
-    mathematicallySound: boolean;
-  };
+  timestamp: string;
+  transactionId: string;
 }
 
+export interface VoteSubmissionData {
+  candidateId: string;
+  voterId: string;
+  electionId: string;
+}
+
+export interface VotingContextType {
+  votingState: VotingState;
+  selectCandidate: (candidate: Candidate) => void;
+  submitVote: (voteData: VoteSubmissionData) => Promise<void>;
+  clearSelection: () => void;
+  resetVoting: () => void;
+}
+
+// Cryptographic types
 export interface ElectionParams {
   n: Uint8Array;
   h: Uint8Array;
   ska?: Uint8Array | number[];
 }
 
-export interface VoteConfirmationData {
-  candidate: Candidate;
-  encryptedVotePreview: string;
-  auxiliaryKey: string;
-}
-
-export interface VotingContextType {
-  votingState: VotingState;
-  selectCandidate: (candidate: Candidate) => void;
-  submitVote: (voterId: string, electionParams: ElectionParams) => Promise<void>;
-  clearSelection: () => void;
-  resetVoting: () => void;
-}
-
 export interface EncryptionResult {
   encryptedVote: Uint8Array;
   auxiliaryKey: Uint8Array;
-}
-
-export interface VoteSubmissionPayload {
-  voterId: string;
-  ci: string; // encrypted vote in hex
-  auxi: string; // auxiliary key in hex
 }

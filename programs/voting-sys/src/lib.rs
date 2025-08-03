@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 
-declare_id!("izmYTzv6KBxCLTjcPqVgJGbrkAz82oTX5tsyKu6CDwQ");
+declare_id!("GuhBQikgkW5Pu6NLLVe6Xezh5iJjxr9YDdu4NzhnxM4m");
 
 #[program]
 pub mod voting_sys {
@@ -99,7 +99,8 @@ pub struct CreateElection<'info> {
     #[account(
         init,
         payer = signer,
-        space = 8 + 1 + 32 + 8 + (4 + 32 * total_candidates as usize) + 64*5,
+        // space = 8 + 1 + 32 + 8 + (4 + 32 * total_candidates as usize) + 64*5,
+        space = 8 + 1 + 32 + 8 + 8 + 4 + (total_candidates as usize) * (4 + 32)+ 5 * (4 + 128)
     )]
     pub election_data: Account<'info, ElectionData>,
     #[account(mut)]
@@ -171,7 +172,7 @@ pub struct VoterData {
 }
 
 impl VoterData {
-    pub const MAX_SIZE: usize = 1+64; // voted (1 byte)
+    pub const MAX_SIZE: usize = 1+256+4; // voted (1 byte)
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]

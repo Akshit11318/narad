@@ -27,10 +27,12 @@ router.get("/params", async (req, res) => {
 });
 
 // Get all auxiliary values
-router.get("/fetch-auxiliary", async (req, res) => {
+router.get("/fetch-auxiliary/:electionId", async (req, res) => {
+  const { electionId } = req.params;
   try {
     // Get all voter data with auxiliary values
     const voterData = await prisma.voterData.findMany({
+      where: { electionId: electionId },
       select: { voterId: true, auxi: true },
     });
 
@@ -44,7 +46,7 @@ router.get("/fetch-auxiliary", async (req, res) => {
 // Submit computed auxiliary product (aux)
 router.post("/aux", async (req, res) => {
   try {
-    const { aux } = req.body;
+    const { aux, electionId } = req.body;
 
     if (!aux) {
       return res.status(400).json({ error: "Missing required field: aux" });
@@ -52,7 +54,7 @@ router.post("/aux", async (req, res) => {
 
     // Store the auxiliary product or update if exists
     const existingResult = await prisma.aggregatedResult.findFirst({
-      orderBy: { createdAt: "desc" },
+      where: { electionId: electionId },
     });
 
     if (existingResult) {
@@ -70,6 +72,7 @@ router.post("/aux", async (req, res) => {
           aux,
           result: "",
           decodedVotes: "[]",
+          electionId: electionId,
         },
       });
     }

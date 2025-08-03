@@ -1,11 +1,17 @@
-import * as React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { SessionTimeoutWarning, useSessionTimeout } from './components/auth';
-import { Login, Register, Dashboard, Voting, Logout, Help, PublicVerification } from './pages';
-import { useAuth } from './hooks';
-import { ROUTES } from './utils/constants';
+import * as React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { Toaster } from "react-hot-toast";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { SessionTimeoutWarning, useSessionTimeout } from "./components/auth";
+import { Login, Register, Dashboard, Voting, Logout, Help } from "./pages";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { VotingProvider } from "./store/votingStore";
+import { ROUTES } from "./utils/constants";
 
 // Protected Route Component
 interface ProtectedRouteProps {
@@ -13,7 +19,7 @@ interface ProtectedRouteProps {
 }
 
 function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -26,7 +32,7 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!user) {
+  if (!isAuthenticated) {
     return <Navigate to={ROUTES.LOGIN} replace />;
   }
 
@@ -39,7 +45,7 @@ interface PublicRouteProps {
 }
 
 function PublicRoute({ children }: PublicRouteProps) {
-  const { user, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -52,7 +58,7 @@ function PublicRoute({ children }: PublicRouteProps) {
     );
   }
 
-  if (user) {
+  if (isAuthenticated) {
     return <Navigate to={ROUTES.DASHBOARD} replace />;
   }
 
@@ -60,85 +66,77 @@ function PublicRoute({ children }: PublicRouteProps) {
 }
 
 function AppContent() {
-  const {
-    showWarning,
-    remainingTime,
-    onExtendSession,
-    onLogout,
-  } = useSessionTimeout();
+  const { showWarning, remainingTime, onExtendSession, onLogout } =
+    useSessionTimeout();
 
   return (
     <>
       <Routes>
         {/* Public Routes */}
-        <Route 
-          path={ROUTES.LOGIN} 
+        <Route
+          path={ROUTES.LOGIN}
           element={
             <PublicRoute>
               <Login />
             </PublicRoute>
-          } 
+          }
         />
-        <Route 
-          path={ROUTES.REGISTER} 
+        <Route
+          path={ROUTES.REGISTER}
           element={
             <PublicRoute>
               <Register />
             </PublicRoute>
-          } 
+          }
         />
 
-        {/* Public Verification Routes */}
-        <Route path="/verify/:verificationCode?" element={<PublicVerification />} />
-        <Route path="/verify" element={<PublicVerification />} />
-
         {/* Protected Routes */}
-        <Route 
-          path={ROUTES.DASHBOARD} 
+        <Route
+          path={ROUTES.DASHBOARD}
           element={
             <ProtectedRoute>
               <Dashboard />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path={ROUTES.VOTING} 
+        <Route
+          path={ROUTES.VOTING}
           element={
             <ProtectedRoute>
               <Voting />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path={ROUTES.HELP} 
+        <Route
+          path={ROUTES.HELP}
           element={
             <ProtectedRoute>
               <Help />
             </ProtectedRoute>
-          } 
+          }
         />
         <Route path={ROUTES.LOGOUT} element={<Logout />} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
-        
+
         {/* 404 Page */}
-        <Route 
-          path="*" 
+        <Route
+          path="*"
           element={
             <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
               <div className="text-center">
                 <h1 className="text-6xl font-bold text-white mb-4">404</h1>
                 <p className="text-xl text-gray-400 mb-8">Page not found</p>
-                <a 
-                  href={ROUTES.DASHBOARD} 
+                <a
+                  href={ROUTES.DASHBOARD}
                   className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200"
                 >
                   Go to Dashboard
                 </a>
               </div>
             </div>
-          } 
+          }
         />
       </Routes>
 
@@ -156,20 +154,20 @@ function AppContent() {
         toastOptions={{
           duration: 4000,
           style: {
-            background: '#1f2937',
-            color: '#f3f4f6',
-            border: '1px solid #374151',
+            background: "#1f2937",
+            color: "#f3f4f6",
+            border: "1px solid #374151",
           },
           success: {
             iconTheme: {
-              primary: '#10b981',
-              secondary: '#f3f4f6',
+              primary: "#10b981",
+              secondary: "#f3f4f6",
             },
           },
           error: {
             iconTheme: {
-              primary: '#ef4444',
-              secondary: '#f3f4f6',
+              primary: "#ef4444",
+              secondary: "#f3f4f6",
             },
           },
         }}
@@ -182,7 +180,11 @@ export function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <AppContent />
+        <AuthProvider>
+          <VotingProvider>
+            <AppContent />
+          </VotingProvider>
+        </AuthProvider>
       </Router>
     </ErrorBoundary>
   );

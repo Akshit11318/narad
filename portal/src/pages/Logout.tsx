@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
-import { useAuth } from '../hooks';
-import { ROUTES } from '../utils/constants';
+import { useEffect } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
+import { useAuth } from "../contexts/AuthContext";
+import { ROUTES } from "../utils/constants";
 
 export function Logout() {
   const { logout } = useAuth();
@@ -13,11 +13,11 @@ export function Logout() {
     const performLogout = async () => {
       try {
         await logout();
-        toast.success('Successfully logged out');
+        toast.success("Successfully logged out");
         navigate(ROUTES.LOGIN);
       } catch (error) {
-        console.error('Logout error:', error);
-        toast.error('Error during logout');
+        console.error("Logout error:", error);
+        toast.error("Error during logout");
         navigate(ROUTES.LOGIN);
       }
     };

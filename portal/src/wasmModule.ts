@@ -3,7 +3,7 @@
  * Pure Uint8Array operations with production-level security
  */
 
-import type { EncryptionModule } from './types/wasm';
+import type { EncryptionModule } from "./types/wasm";
 
 // Declare the global window interface to include createEncryptionModule
 declare global {
@@ -29,7 +29,8 @@ export async function loadWasmModule(): Promise<EncryptionModule> {
     return loadPromise;
   }
 
-  isLoading = true;  loadPromise = new Promise((resolve, reject) => {
+  isLoading = true;
+  loadPromise = new Promise((resolve, reject) => {
     // Load the JavaScript glue file which will load the .wasm file
     try {
       // Access the global createEncryptionModule function that was loaded via script tag
@@ -47,7 +48,8 @@ export async function loadWasmModule(): Promise<EncryptionModule> {
               Object.keys(wasmModule!)
                 .filter(
                   (key) =>
-                    typeof (wasmModule as any)[key] === "function" && key.startsWith("_")
+                    typeof (wasmModule as any)[key] === "function" &&
+                    key.startsWith("_")
                 )
                 .sort()
             );
@@ -74,7 +76,8 @@ export async function loadWasmModule(): Promise<EncryptionModule> {
           if (typeof window.createEncryptionModule === "function") {
             console.log(
               "Successfully loaded createEncryptionModule via script element"
-            );            window
+            );
+            window
               .createEncryptionModule()
               .then((module: EncryptionModule) => {
                 wasmModule = module as EncryptionModule;
@@ -569,7 +572,7 @@ export async function fetchElectionParams(): Promise<{
   try {
     const backendUrl =
       import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
-    const response = await fetch(`${backendUrl}/api/user/params`);
+    const response = await fetch(`${backendUrl}/api/aggregator/params`);
     console.log(response);
 
     if (!response.ok) {
@@ -578,7 +581,7 @@ export async function fetchElectionParams(): Promise<{
       );
     }
 
-    const data = await response.json();    // Convert hex string parameters to Uint8Array using WASM-backed conversion
+    const data = await response.json(); // Convert hex string parameters to Uint8Array using WASM-backed conversion
     const n = await hexToUint8Array(data.N);
     const h = await hexToUint8Array(data.H);
 
@@ -783,26 +786,30 @@ export async function wasmModExp(
   modulus: Uint8Array
 ): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const baseWasm = copyArrayToWasm(module, base);
   const expWasm = copyArrayToWasm(module, exponent);
   const modWasm = copyArrayToWasm(module, modulus);
-  
+
   const resultSize = modulus.length;
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmmodexp(
-      baseWasm.ptr, baseWasm.length,
-      expWasm.ptr, expWasm.length,
-      modWasm.ptr, modWasm.length,
-      resultPtr, resultSize
+      baseWasm.ptr,
+      baseWasm.length,
+      expWasm.ptr,
+      expWasm.length,
+      modWasm.ptr,
+      modWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM modular exponentiation failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(baseWasm.ptr);
@@ -822,26 +829,30 @@ export async function wasmModMul(
   modulus: Uint8Array
 ): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const bWasm = copyArrayToWasm(module, b);
   const modWasm = copyArrayToWasm(module, modulus);
-  
+
   const resultSize = modulus.length;
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmmodmul(
-      aWasm.ptr, aWasm.length,
-      bWasm.ptr, bWasm.length,
-      modWasm.ptr, modWasm.length,
-      resultPtr, resultSize
+      aWasm.ptr,
+      aWasm.length,
+      bWasm.ptr,
+      bWasm.length,
+      modWasm.ptr,
+      modWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM modular multiplication failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(aWasm.ptr);
@@ -860,26 +871,30 @@ export async function wasmModAdd(
   modulus: Uint8Array
 ): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const bWasm = copyArrayToWasm(module, b);
   const modWasm = copyArrayToWasm(module, modulus);
-  
+
   const resultSize = modulus.length;
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmmodadd(
-      aWasm.ptr, aWasm.length,
-      bWasm.ptr, bWasm.length,
-      modWasm.ptr, modWasm.length,
-      resultPtr, resultSize
+      aWasm.ptr,
+      aWasm.length,
+      bWasm.ptr,
+      bWasm.length,
+      modWasm.ptr,
+      modWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM modular addition failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(aWasm.ptr);
@@ -898,26 +913,30 @@ export async function wasmModSub(
   modulus: Uint8Array
 ): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const bWasm = copyArrayToWasm(module, b);
   const modWasm = copyArrayToWasm(module, modulus);
-  
+
   const resultSize = modulus.length;
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmmodsub(
-      aWasm.ptr, aWasm.length,
-      bWasm.ptr, bWasm.length,
-      modWasm.ptr, modWasm.length,
-      resultPtr, resultSize
+      aWasm.ptr,
+      aWasm.length,
+      bWasm.ptr,
+      bWasm.length,
+      modWasm.ptr,
+      modWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM modular subtraction failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(aWasm.ptr);
@@ -935,24 +954,27 @@ export async function wasmModInv(
   modulus: Uint8Array
 ): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const modWasm = copyArrayToWasm(module, modulus);
-  
+
   const resultSize = modulus.length;
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmmodinv(
-      aWasm.ptr, aWasm.length,
-      modWasm.ptr, modWasm.length,
-      resultPtr, resultSize
+      aWasm.ptr,
+      aWasm.length,
+      modWasm.ptr,
+      modWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM modular inverse failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(aWasm.ptr);
@@ -964,12 +986,15 @@ export async function wasmModInv(
 /**
  * WASM-only BigInt comparison: returns -1, 0, 1
  */
-export async function wasmCompare(a: Uint8Array, b: Uint8Array): Promise<number> {
+export async function wasmCompare(
+  a: Uint8Array,
+  b: Uint8Array
+): Promise<number> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const bWasm = copyArrayToWasm(module, b);
-  
+
   try {
     return module._wasmcmp(aWasm.ptr, aWasm.length, bWasm.ptr, bWasm.length);
   } finally {
@@ -981,14 +1006,19 @@ export async function wasmCompare(a: Uint8Array, b: Uint8Array): Promise<number>
 /**
  * WASM-only BigInt equality check: returns true/false
  */
-export async function wasmEqual(a: Uint8Array, b: Uint8Array): Promise<boolean> {
+export async function wasmEqual(
+  a: Uint8Array,
+  b: Uint8Array
+): Promise<boolean> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const bWasm = copyArrayToWasm(module, b);
-  
+
   try {
-    return module._wasmequal(aWasm.ptr, aWasm.length, bWasm.ptr, bWasm.length) === 1;
+    return (
+      module._wasmequal(aWasm.ptr, aWasm.length, bWasm.ptr, bWasm.length) === 1
+    );
   } finally {
     module._free(aWasm.ptr);
     module._free(bWasm.ptr);
@@ -1000,9 +1030,9 @@ export async function wasmEqual(a: Uint8Array, b: Uint8Array): Promise<boolean> 
  */
 export async function wasmIsZero(a: Uint8Array): Promise<boolean> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
-  
+
   try {
     return module._wasmiszero(aWasm.ptr, aWasm.length) === 1;
   } finally {
@@ -1013,26 +1043,32 @@ export async function wasmIsZero(a: Uint8Array): Promise<boolean> {
 /**
  * WASM-only addition: a + b
  */
-export async function wasmAdd(a: Uint8Array, b: Uint8Array): Promise<Uint8Array> {
+export async function wasmAdd(
+  a: Uint8Array,
+  b: Uint8Array
+): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const bWasm = copyArrayToWasm(module, b);
-  
+
   const resultSize = Math.max(a.length, b.length) + 1; // Allow for overflow
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmadd(
-      aWasm.ptr, aWasm.length,
-      bWasm.ptr, bWasm.length,
-      resultPtr, resultSize
+      aWasm.ptr,
+      aWasm.length,
+      bWasm.ptr,
+      bWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM addition failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(aWasm.ptr);
@@ -1044,26 +1080,32 @@ export async function wasmAdd(a: Uint8Array, b: Uint8Array): Promise<Uint8Array>
 /**
  * WASM-only subtraction: a - b
  */
-export async function wasmSub(a: Uint8Array, b: Uint8Array): Promise<Uint8Array> {
+export async function wasmSub(
+  a: Uint8Array,
+  b: Uint8Array
+): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const bWasm = copyArrayToWasm(module, b);
-  
+
   const resultSize = Math.max(a.length, b.length);
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmsub(
-      aWasm.ptr, aWasm.length,
-      bWasm.ptr, bWasm.length,
-      resultPtr, resultSize
+      aWasm.ptr,
+      aWasm.length,
+      bWasm.ptr,
+      bWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM subtraction failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(aWasm.ptr);
@@ -1075,26 +1117,32 @@ export async function wasmSub(a: Uint8Array, b: Uint8Array): Promise<Uint8Array>
 /**
  * WASM-only multiplication: a * b
  */
-export async function wasmMul(a: Uint8Array, b: Uint8Array): Promise<Uint8Array> {
+export async function wasmMul(
+  a: Uint8Array,
+  b: Uint8Array
+): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const bWasm = copyArrayToWasm(module, b);
-  
+
   const resultSize = a.length + b.length; // Allow for full product
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmmul(
-      aWasm.ptr, aWasm.length,
-      bWasm.ptr, bWasm.length,
-      resultPtr, resultSize
+      aWasm.ptr,
+      aWasm.length,
+      bWasm.ptr,
+      bWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM multiplication failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(aWasm.ptr);
@@ -1106,26 +1154,32 @@ export async function wasmMul(a: Uint8Array, b: Uint8Array): Promise<Uint8Array>
 /**
  * WASM-only modulo: a mod modulus
  */
-export async function wasmMod(a: Uint8Array, modulus: Uint8Array): Promise<Uint8Array> {
+export async function wasmMod(
+  a: Uint8Array,
+  modulus: Uint8Array
+): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const modWasm = copyArrayToWasm(module, modulus);
-  
+
   const resultSize = modulus.length;
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmmod(
-      aWasm.ptr, aWasm.length,
-      modWasm.ptr, modWasm.length,
-      resultPtr, resultSize
+      aWasm.ptr,
+      aWasm.length,
+      modWasm.ptr,
+      modWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM modulo failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(aWasm.ptr);
@@ -1136,24 +1190,29 @@ export async function wasmMod(a: Uint8Array, modulus: Uint8Array): Promise<Uint8
 
 /**
  * WASM-only secure random generation within modulus range
- * All ZKP random values use this function exclusively  
+ * All ZKP random values use this function exclusively
  */
 export async function wasmSecureRandom(
   modulus: Uint8Array
 ): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const resultSize = modulus.length;
   const resultPtr = module._malloc(resultSize);
   const modWasm = copyArrayToWasm(module, modulus);
-  
+
   try {
-    const success = module._wasmrand(resultPtr, resultSize, modWasm.ptr, modWasm.length);
-    
+    const success = module._wasmrand(
+      resultPtr,
+      resultSize,
+      modWasm.ptr,
+      modWasm.length
+    );
+
     if (success !== 0) {
       throw new Error(`WASM secure random generation failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(modWasm.ptr);
@@ -1164,26 +1223,32 @@ export async function wasmSecureRandom(
 /**
  * WASM-only GCD: gcd(a, b)
  */
-export async function wasmGcd(a: Uint8Array, b: Uint8Array): Promise<Uint8Array> {
+export async function wasmGcd(
+  a: Uint8Array,
+  b: Uint8Array
+): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const aWasm = copyArrayToWasm(module, a);
   const bWasm = copyArrayToWasm(module, b);
-  
+
   const resultSize = Math.max(a.length, b.length);
   const resultPtr = module._malloc(resultSize);
-  
+
   try {
     const success = module._wasmgcd(
-      aWasm.ptr, aWasm.length,
-      bWasm.ptr, bWasm.length,
-      resultPtr, resultSize
+      aWasm.ptr,
+      aWasm.length,
+      bWasm.ptr,
+      bWasm.length,
+      resultPtr,
+      resultSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM GCD failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, resultPtr, resultSize);
   } finally {
     module._free(aWasm.ptr);
@@ -1207,27 +1272,27 @@ export async function isEqual(a: Uint8Array, b: Uint8Array): Promise<boolean> {
 export async function hexToUint8Array(hex: string): Promise<Uint8Array> {
   // Validate input first
   if (!hex) {
-    console.error('hexToUint8Array called with empty/null hex string');
-    throw new Error('Hex string cannot be empty or null');
+    console.error("hexToUint8Array called with empty/null hex string");
+    throw new Error("Hex string cannot be empty or null");
   }
-  
+
   try {
     return await wasmFromHex(hex);
   } catch (error) {
-    console.warn('WASM hex parsing failed for hex string:', hex);
-    console.warn('Error:', error);
-    console.warn('Using JavaScript fallback...');
-    
+    console.warn("WASM hex parsing failed for hex string:", hex);
+    console.warn("Error:", error);
+    console.warn("Using JavaScript fallback...");
+
     // JavaScript fallback for hex parsing
-    const cleanHex = hex.replace(/^0x/, '');
+    const cleanHex = hex.replace(/^0x/, "");
     if (cleanHex.length === 0) {
-      throw new Error('Empty hex string after cleaning');
+      throw new Error("Empty hex string after cleaning");
     }
-    
+
     // Ensure even length
-    const paddedHex = cleanHex.length % 2 === 0 ? cleanHex : '0' + cleanHex;
+    const paddedHex = cleanHex.length % 2 === 0 ? cleanHex : "0" + cleanHex;
     const bytes = new Uint8Array(paddedHex.length / 2);
-    
+
     for (let i = 0; i < paddedHex.length; i += 2) {
       bytes[i / 2] = parseInt(paddedHex.substr(i, 2), 16);
     }
@@ -1239,17 +1304,23 @@ export async function hexToUint8Array(hex: string): Promise<Uint8Array> {
  * Convert Uint8Array to hex string using WASM-backed conversion
  * All hex string outputs in ZKP operations use this exclusively
  */
-export async function uint8ArrayToHex(bytes: Uint8Array, padding: number = 0): Promise<string> {
+export async function uint8ArrayToHex(
+  bytes: Uint8Array,
+  padding: number = 0
+): Promise<string> {
   try {
     const hex = await wasmToHex(bytes);
-    return padding > hex.length ? hex.padStart(padding, '0') : hex;
+    return padding > hex.length ? hex.padStart(padding, "0") : hex;
   } catch (error) {
-    console.warn('WASM hex conversion failed, using JavaScript fallback:', error);
+    console.warn(
+      "WASM hex conversion failed, using JavaScript fallback:",
+      error
+    );
     // JavaScript fallback for hex conversion
     const hex = Array.from(bytes)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-    return padding > hex.length ? hex.padStart(padding, '0') : hex;
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    return padding > hex.length ? hex.padStart(padding, "0") : hex;
   }
 }
 
@@ -1259,8 +1330,8 @@ export async function uint8ArrayToHex(bytes: Uint8Array, padding: number = 0): P
  */
 export async function numberToUint8Array(num: number): Promise<Uint8Array> {
   // Convert number to hex string first
-  const hexString = num.toString(16).padStart(2, '0');
-  
+  const hexString = num.toString(16).padStart(2, "0");
+
   // Use WASM hex conversion for consistent results
   return await wasmFromHex(hexString);
 }
@@ -1271,37 +1342,42 @@ export async function numberToUint8Array(num: number): Promise<Uint8Array> {
  */
 export async function wasmFromHex(hexString: string): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   // Check if the required function exists
-  if (!module._wasmfromhex || typeof module._wasmfromhex !== 'function') {
-    console.error('Available WASM functions:', Object.keys(module).filter(k => k.startsWith('_')));
-    throw new Error('WASM module does not have _wasmfromhex function. Module may not be properly loaded.');
+  if (!module._wasmfromhex || typeof module._wasmfromhex !== "function") {
+    console.error(
+      "Available WASM functions:",
+      Object.keys(module).filter((k) => k.startsWith("_"))
+    );
+    throw new Error(
+      "WASM module does not have _wasmfromhex function. Module may not be properly loaded."
+    );
   }
-  
+
   // Remove 0x prefix if present
-  const cleanHex = hexString.replace(/^0x/, '');
-  
+  const cleanHex = hexString.replace(/^0x/, "");
+
   // Validate hex string - handle empty strings properly
   if (cleanHex.length === 0) {
-    console.error('Empty hex string provided to wasmFromHex');
-    throw new Error('Empty hex string provided');
+    console.error("Empty hex string provided to wasmFromHex");
+    throw new Error("Empty hex string provided");
   }
-  
+
   if (!/^[0-9a-fA-F]*$/.test(cleanHex)) {
     throw new Error(`Invalid hex string: ${hexString}`);
   }
-  
+
   // Ensure hex string has even length
-  const paddedHex = cleanHex.length % 2 === 0 ? cleanHex : '0' + cleanHex;
+  const paddedHex = cleanHex.length % 2 === 0 ? cleanHex : "0" + cleanHex;
   const resultSize = paddedHex.length / 2;
-  
+
   if (resultSize === 0) {
-    console.error('Calculated result size is 0 for hex string:', hexString);
-    throw new Error('Invalid hex string results in zero bytes');
+    console.error("Calculated result size is 0 for hex string:", hexString);
+    throw new Error("Invalid hex string results in zero bytes");
   }
-  
+
   const resultPtr = module._malloc(resultSize);
-  
+
   // Convert string to C string for WASM
   const hexPtr = module._malloc(paddedHex.length + 1);
   const hexArray = new Uint8Array(paddedHex.length + 1);
@@ -1310,20 +1386,20 @@ export async function wasmFromHex(hexString: string): Promise<Uint8Array> {
   }
   hexArray[paddedHex.length] = 0; // Null terminator
   module.HEAPU8.set(hexArray, hexPtr);
-  
+
   try {
     // Call WASM function with proper BigInt structure pattern:
     // _wasmfromhex(hexPtr: C-string, resultPtr: BigInt.data, resultLen: BigInt.length)
     const length = module._wasmfromhex(hexPtr, resultPtr, resultSize);
-    
+
     if (length < 0) {
-      console.error('WASM _wasmfromhex function failed with code:', length);
-      console.error('Input hex string:', hexString);
-      console.error('Clean hex string:', paddedHex);
-      console.error('Expected result size:', resultSize);
+      console.error("WASM _wasmfromhex function failed with code:", length);
+      console.error("Input hex string:", hexString);
+      console.error("Clean hex string:", paddedHex);
+      console.error("Expected result size:", resultSize);
       throw new Error(`WASM hex conversion failed: ${length}`);
     }
-    
+
     // Use the actual length returned by the function
     const actualLength = length > 0 ? length : resultSize;
     return copyArrayFromWasm(module, resultPtr, actualLength);
@@ -1334,43 +1410,50 @@ export async function wasmFromHex(hexString: string): Promise<Uint8Array> {
 }
 
 /**
- * WASM-only Uint8Array to hex string conversion  
+ * WASM-only Uint8Array to hex string conversion
  * All hex outputs in ZKP operations use this function exclusively
  */
 export async function wasmToHex(bytes: Uint8Array): Promise<string> {
   const module = await loadWasmModule();
-  
+
   // Check if the required function exists
-  if (!module._wasmtohex || typeof module._wasmtohex !== 'function') {
-    console.error('Available WASM functions:', Object.keys(module).filter(k => k.startsWith('_')));
-    throw new Error('WASM module does not have _wasmtohex function. Module may not be properly loaded.');
+  if (!module._wasmtohex || typeof module._wasmtohex !== "function") {
+    console.error(
+      "Available WASM functions:",
+      Object.keys(module).filter((k) => k.startsWith("_"))
+    );
+    throw new Error(
+      "WASM module does not have _wasmtohex function. Module may not be properly loaded."
+    );
   }
-  
+
   // Validate input
   if (!bytes || bytes.length === 0) {
-    return '';
+    return "";
   }
-  
+
   const bytesWasm = copyArrayToWasm(module, bytes);
   const hexSize = bytes.length * 2 + 1; // 2 chars per byte + null terminator
   const hexPtr = module._malloc(hexSize);
-  
+
   try {
     const success = module._wasmtohex(
-      bytesWasm.ptr, bytesWasm.length,
-      hexPtr, hexSize
+      bytesWasm.ptr,
+      bytesWasm.length,
+      hexPtr,
+      hexSize
     );
-    
+
     if (success !== 0) {
-      console.error('WASM _wasmtohex function failed with code:', success);
-      console.error('Input bytes length:', bytes.length);
-      console.error('Hex buffer size allocated:', hexSize);
+      console.error("WASM _wasmtohex function failed with code:", success);
+      console.error("Input bytes length:", bytes.length);
+      console.error("Hex buffer size allocated:", hexSize);
       throw new Error(`WASM hex conversion failed: ${success}`);
     }
-    
+
     // Convert C string to JavaScript string
     const hexArray = new Uint8Array(module.HEAPU8.buffer, hexPtr, hexSize - 1);
-    let result = '';
+    let result = "";
     for (let i = 0; i < hexArray.length && hexArray[i] !== 0; i++) {
       result += String.fromCharCode(hexArray[i]);
     }
@@ -1387,9 +1470,9 @@ export async function wasmToHex(bytes: Uint8Array): Promise<string> {
  */
 export async function wasmLength(bytes: Uint8Array): Promise<number> {
   const module = await loadWasmModule();
-  
+
   const bytesWasm = copyArrayToWasm(module, bytes);
-  
+
   try {
     return module._wasmlen(bytesWasm.ptr, bytesWasm.length);
   } finally {
@@ -1401,22 +1484,27 @@ export async function wasmLength(bytes: Uint8Array): Promise<number> {
  * WASM-only copy BigInt data
  * All data copying in ZKP operations uses this function exclusively
  */
-export async function wasmCopy(source: Uint8Array, destSize: number): Promise<Uint8Array> {
+export async function wasmCopy(
+  source: Uint8Array,
+  destSize: number
+): Promise<Uint8Array> {
   const module = await loadWasmModule();
-  
+
   const srcWasm = copyArrayToWasm(module, source);
   const destPtr = module._malloc(destSize);
-  
+
   try {
     const success = module._wasmcopy(
-      srcWasm.ptr, srcWasm.length,
-      destPtr, destSize
+      srcWasm.ptr,
+      srcWasm.length,
+      destPtr,
+      destSize
     );
-    
+
     if (success !== 0) {
       throw new Error(`WASM copy failed: ${success}`);
     }
-    
+
     return copyArrayFromWasm(module, destPtr, destSize);
   } finally {
     module._free(srcWasm.ptr);

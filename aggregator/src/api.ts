@@ -6,6 +6,7 @@ dotenv.config();
 
 // Define the API endpoint to fetch ciphertexts and params
 const API_URL = "http://localhost:3000/api/aggregator";
+const electionId = process.env.ELECTION_ID;
 // Define the interface for election parameters
 interface ElectionParams {
   N: string;
@@ -59,7 +60,9 @@ export async function fetchElectionParams(): Promise<ElectionParams> {
  */
 export async function fetchCiphertextsAndAux(): Promise<CiphertextsAndAuxResponse> {
   try {
-    const response = await axios.get(`${API_URL}/ciphertexts-and-aux`);
+    const response = await axios.get(
+      `${API_URL}/ciphertexts-and-aux/${electionId}`
+    );
     return response.data;
   } catch (error) {
     console.error("Error fetching ciphertexts and auxiliary value:", error);
@@ -88,7 +91,10 @@ export async function fetchCiphertextsAndAux(): Promise<CiphertextsAndAuxRespons
  */
 export async function submitAggregatedResult(sum: string): Promise<any> {
   try {
-    const response = await axios.post(`${API_URL}/result`, { sum });
+    const response = await axios.post(`${API_URL}/result`, {
+      sum,
+      electionId,
+    });
     return response.data;
   } catch (error) {
     console.error("Error submitting aggregated result:", error);

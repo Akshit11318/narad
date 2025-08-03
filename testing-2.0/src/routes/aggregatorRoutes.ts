@@ -9,20 +9,19 @@ const log = (message: string) => {
 const router = Router();
 
 // Get system parameters for aggregator initialization
+
+// Submit aggregation result
 router.get("/params", async (req, res) => {
   try {
-    log("Fetching system parameters for initialization");
     // Get the most recent system parameters
     const systemParams = await prisma.systemParams.findFirst({
       orderBy: { createdAt: "desc" },
     });
 
     if (!systemParams) {
-      log("Error: System parameters not found");
       return res.status(404).json({ error: "System parameters not found" });
     }
 
-    log("Successfully retrieved system parameters");
     res.status(200).json({
       N: systemParams.N,
       H: systemParams.H,
@@ -33,12 +32,10 @@ router.get("/params", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch system parameters" });
   }
 });
-
-// Submit aggregation result
 router.post("/result", async (req, res) => {
   try {
     log("Receiving aggregation result submission");
-    const { result, decodedVotes } = req.body;
+    const { result, decodedVotes, electionId } = req.body;
 
     if (!result || !decodedVotes) {
       log("Error: Missing required fields in result submission");
@@ -49,7 +46,7 @@ router.post("/result", async (req, res) => {
 
     // Store the aggregation result
     const existingResult = await prisma.aggregatedResult.findFirst({
-      orderBy: { createdAt: "desc" },
+      where: { electionId: electionId },
     });
 
     if (existingResult) {
@@ -66,6 +63,7 @@ router.post("/result", async (req, res) => {
           aux: "",
           result,
           decodedVotes: JSON.stringify(decodedVotes),
+          electionId: electionId,
         },
       });
     }
@@ -81,18 +79,21 @@ router.post("/result", async (req, res) => {
 });
 
 // Get all ciphertexts (ci) and auxiliary value (aux)
-router.get("/ciphertexts-and-aux", async (req, res) => {
+router.get("/ciphertexts-and-aux/:electionId", async (req, res) => {
+  const { electionId } = req.params;
   try {
     log("Fetching all ciphertexts and auxiliary value");
     // Get all voter data with ciphertexts
     const voterData = await prisma.voterData.findMany({
+      where: { electionId: electionId },
       select: { voterId: true, ci: true },
     });
     log(`Retrieved ${voterData.length} ciphertexts`);
 
     // Get the most recent auxiliary value
     const aggregatedResult = await prisma.aggregatedResult.findFirst({
-      orderBy: { createdAt: "desc" },
+      where: { electionId: electionId },
+
       select: { aux: true },
     });
 

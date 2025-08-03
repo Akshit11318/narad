@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { blockchainService } from "../services/blockchainService";
 import prisma from "../prisma";
+import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
 
@@ -98,6 +99,25 @@ router.post("/elections/:electionId/change-stage", async (req, res) => {
   }
 });
 
+// Get candidates for a specific election
+router.get("/elections/:electionId/candidates", async (req, res) => {
+  try {
+    const { electionId } = req.params;
+    const candidates = await blockchainService.getCandidates(electionId);
+
+    res.status(200).json({
+      success: true,
+      data: candidates,
+    });
+  } catch (error) {
+    console.error("Error fetching candidates:", error);
+    res.status(500).json({
+      error:
+        error instanceof Error ? error.message : "Failed to fetch candidates",
+    });
+  }
+});
+
 // Add candidate to whitelist
 router.post("/elections/:electionId/candidates", async (req, res) => {
   try {
@@ -184,6 +204,10 @@ router.post("/elections/:electionId/auxt", async (req, res) => {
         error: "Missing required field: auxt",
       });
     }
+    const auxtact = await prisma.aggregatedResult.update({
+      where: { electionId: electionId },
+      data: { aux: auxt },
+    });
 
     await blockchainService.addAUXT(electionId, auxt);
 
@@ -227,7 +251,7 @@ router.post("/elections/:electionId/collector-pkc", async (req, res) => {
 });
 
 // Submit a vote
-router.post("/elections/:electionId/vote", async (req, res) => {
+router.post("/elections/:electionId/vote", authMiddleware, async (req, res) => {
   try {
     const { electionId } = req.params;
     const { voterId, voterCi, auxi } = req.body;
@@ -237,24 +261,26 @@ router.post("/elections/:electionId/vote", async (req, res) => {
         error: "Missing required fields: voterId, voterCi, auxi",
       });
     }
-    const existingVote = await prisma.voterData.findUnique({
-      where: { voterId },
+    const existingVote = await prisma.voterData.findFirst({
+      where: { voterId, electionId },
     });
 
-    if (existingVote) {
-      return res.status(409).json({ error: "Voter has already cast a vote" });
+    if (!existingVote) {
+      return res.status(404).json({ error: "Invalid voter" });
     }
 
     // Store the voter's data
-    const voterData = await prisma.voterData.create({
+    await blockchainService.submitVote(electionId, voterId, voterCi);
+    const voterData = await prisma.voterData.update({
+      where: { id: existingVote.id },
       data: {
         voterId,
         ci: voterCi,
         auxi,
+        electionId,
+        // Generate a placeholder email
       },
     });
-
-    await blockchainService.submitVote(electionId, voterId, voterCi);
 
     res.status(200).json({
       success: true,
