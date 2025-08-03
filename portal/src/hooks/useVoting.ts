@@ -35,7 +35,8 @@ export function useVoting() {
   const selectCandidate = useCallback(
     (candidate: Candidate) => {
       if (votingStore.hasVoted) {
-        toast.error("You have already voted in this election");
+        // Don't show error toast - just silently ignore selection after voting
+        console.log("Vote already cast, ignoring candidate selection");
         return;
       }
 
@@ -102,7 +103,7 @@ export function useVoting() {
           "🎯 useVoting: Starting vote submission with WASM encryption..."
         );
         await votingStore.submitVote(voteData);
-        toast.success("Vote submitted successfully!");
+        // Success toast is handled by the component, not here
         console.log("✅ useVoting: Vote submission completed successfully");
       } catch (error) {
         const errorMessage =

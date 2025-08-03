@@ -8,7 +8,6 @@ import type {
 } from "../types";
 import { loadWasmModule } from "../wasmModule";
 import { API_ENDPOINTS, ERROR_MESSAGES } from "../utils/constants";
-import { fetchCandidatesFromAPI } from "../utils/candidateGenerator";
 
 interface VotingContextType extends VotingState {
   // Basic voting methods
@@ -234,7 +233,8 @@ export function VotingProvider({ children }: { children: React.ReactNode }) {
   const selectCandidate = useCallback(
     (candidate: Candidate) => {
       if (hasVoted) {
-        setError(ERROR_MESSAGES.ALREADY_VOTED);
+        // Don't set error - just silently ignore selection after voting
+        console.log("Vote already cast, ignoring candidate selection");
         return;
       }
       setSelectedCandidate(candidate);
@@ -364,8 +364,9 @@ export function VotingProvider({ children }: { children: React.ReactNode }) {
             .substr(2, 9)}`,
         };
 
-        setIsVoting(false);
+        // Set hasVoted FIRST to prevent race conditions
         setHasVoted(true);
+        setIsVoting(false);
         setVoteConfirmation(confirmation);
         setError(null);
 

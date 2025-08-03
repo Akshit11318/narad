@@ -11,8 +11,6 @@ import {
   ElectionSelection,
 } from "../components/voting";
 import { useVoting, useWasm } from "../hooks";
-import { useAuth } from "../contexts/AuthContext";
-import { useVotingStore } from "../store";
 import { ROUTES } from "../utils/constants";
 import type { Candidate } from "../types";
 
@@ -26,7 +24,6 @@ type VotingStep =
 export function Voting() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated } = useAuth();
   const {
     candidates,
     selectedCandidate,
@@ -59,13 +56,14 @@ export function Voting() {
   }, [searchParams, loadCandidates]);
 
   useEffect(() => {
-    // Redirect if user has already voted
-    if (hasVoted) {
+    // Only redirect if user has already voted AND is not in the submitted step
+    // This prevents the error toast from showing after successful voting
+    if (hasVoted && currentStep !== "submitted") {
       toast.error("You have already voted in this election");
       navigate(ROUTES.DASHBOARD);
       return;
     }
-  }, [hasVoted, navigate]);
+  }, [hasVoted, navigate, currentStep]);
 
   const handleElectionSelected = (electionId: string) => {
     setSelectedElectionId(electionId);

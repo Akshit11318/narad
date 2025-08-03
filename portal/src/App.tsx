@@ -39,12 +39,13 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
   return <>{children}</>;
 }
 
-// Public Route Component (redirect to dashboard if already authenticated)
+// Public Route Component (redirect authenticated users appropriately)
 interface PublicRouteProps {
   children: React.ReactNode;
+  redirectTo?: string;
 }
 
-function PublicRoute({ children }: PublicRouteProps) {
+function PublicRoute({ children, redirectTo = ROUTES.DASHBOARD }: PublicRouteProps) {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -59,10 +60,29 @@ function PublicRoute({ children }: PublicRouteProps) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={ROUTES.DASHBOARD} replace />;
+    return <Navigate to={redirectTo} replace />;
   }
 
   return <>{children}</>;
+}
+
+// Default Route Component (smart redirect based on authentication)
+function DefaultRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If authenticated, redirect to dashboard, otherwise to login
+  return <Navigate to={isAuthenticated ? ROUTES.DASHBOARD : ROUTES.LOGIN} replace />;
 }
 
 function AppContent() {
@@ -84,7 +104,7 @@ function AppContent() {
         <Route
           path={ROUTES.REGISTER}
           element={
-            <PublicRoute>
+            <PublicRoute redirectTo={ROUTES.LOGIN}>
               <Register />
             </PublicRoute>
           }
@@ -117,8 +137,8 @@ function AppContent() {
         />
         <Route path={ROUTES.LOGOUT} element={<Logout />} />
 
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+        {/* Default redirect - smart routing based on authentication */}
+        <Route path="/" element={<DefaultRoute />} />
 
         {/* 404 Page */}
         <Route

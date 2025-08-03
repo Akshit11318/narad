@@ -1,13 +1,14 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { LoginForm } from '../components/auth';
 import { Layout } from '../components/layout';
+import { ROUTES } from '../utils/constants';
 
 export function Login() {
-  // For now, we'll just show the login form
-  // Register functionality can be added later
+  const navigate = useNavigate();
+
   const handleSwitchToRegister = () => {
-    // Could navigate to a separate register page or show register form
-    console.log('Switch to register - feature to be implemented');
+    navigate(ROUTES.REGISTER);
   };
 
   return (

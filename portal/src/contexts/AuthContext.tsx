@@ -124,11 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const result = await response.json();
 
         if (result.message === "Voter registered successfully") {
-          // After successful registration, automatically log in
-          setIsAuthenticated(true);
+          // After successful registration, redirect to login
           setIsLoading(false);
           setError(null);
-          navigate(ROUTES.DASHBOARD);
+          navigate(ROUTES.LOGIN);
         }
       } catch (error) {
         const errorMessage =

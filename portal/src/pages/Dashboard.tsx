@@ -10,7 +10,7 @@ import { ROUTES } from "../utils/constants";
 import { toast } from "react-hot-toast";
 
 export function Dashboard() {
-  const { isAuthenticated, logout } = useAuth();
+  const { logout } = useAuth();
   const { hasVoted, voteConfirmation } = useVoting();
   const navigate = useNavigate();
   const [selectedElectionId, setSelectedElectionId] = useState<string>("");
@@ -140,11 +140,10 @@ export function Dashboard() {
                 Voting Status
               </h3>
               <div
-                className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  hasVoted
-                    ? "bg-green-900 text-green-400 border border-green-500"
-                    : "bg-yellow-900 text-yellow-400 border border-yellow-500"
-                }`}
+                className={`px-3 py-1 rounded-full text-sm font-medium ${hasVoted
+                  ? "bg-green-900 text-green-400 border border-green-500"
+                  : "bg-yellow-900 text-yellow-400 border border-yellow-500"
+                  }`}
               >
                 {hasVoted ? "Completed" : "Pending"}
               </div>
@@ -299,7 +298,12 @@ export function Dashboard() {
                 <label className="block text-sm text-gray-400 mb-1">
                   Total Candidates
                 </label>
-                <p className="text-white font-medium">4 Candidates</p>
+                <p className="text-white font-medium">
+                  {hasVoted && voteConfirmation
+                    ? "Candidates available"
+                    : "Select an election to view candidates"
+                  }
+                </p>
               </div>
 
               <div>
