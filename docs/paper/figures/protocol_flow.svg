@@ -1,120 +1,130 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="820" height="980" viewBox="0 0 820 980" font-family="serif">
-  <rect width="820" height="980" fill="white"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="1050" viewBox="0 0 820 1050" font-family="serif">
+  <rect width="820" height="1050" fill="white"/>
 
   <!-- Title -->
-  <text x="410" y="25" text-anchor="middle" font-size="15" font-weight="bold">Protocol Execution Flow: Voter → Aggregation</text>
-  <line x1="100" y1="35" x2="720" y2="35" stroke="black" stroke-width="0.5"/>
+  <text x="410" y="25" text-anchor="middle" font-size="15" font-weight="bold">Protocol Execution: From Voter Ballot to Published Tally</text>
+  <line x1="80" y1="35" x2="740" y2="35" stroke="black" stroke-width="0.5"/>
 
   <!-- ===== PHASE 1: SETUP ===== -->
-  <rect x="30" y="50" width="760" height="100" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
+  <rect x="30" y="50" width="760" height="110" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
   <rect x="30" y="50" width="760" height="22" fill="#e8e8e8" stroke="black" stroke-width="0.5"/>
   <text x="50" y="66" font-size="12" font-weight="bold">Phase 1 — Setup (Trusted Third Party TP)</text>
 
-  <text x="50" y="85" font-size="11">TP chooses safe primes p, q  →  N = p · q</text>
-  <text x="50" y="100" font-size="11">TP picks H ∈ Z*_{N²}  →  publishes (N, H), goes offline</text>
-  <text x="50" y="115" font-size="11">Aggregator A picks sk_A ∈ Z*_{N²}  →  publishes pk_A = H^{sk_A} mod N²</text>
-  <text x="50" y="130" font-size="11">Each voter U_i picks sk_i ∈ [0, N²) independently  (no key dealer)</text>
+  <text x="50" y="88" font-size="11">1. TP chooses safe primes p, q  →  N = p · q</text>
+  <text x="50" y="103" font-size="11">2. TP picks H ∈ Z*_{N²}  →  publishes (N, H), goes offline</text>
+  <text x="50" y="118" font-size="11">3. Aggregator A generates sk_A ∈ Z*_{N²}  →  publishes pk_A = H^{sk_A} mod N²</text>
+  <text x="50" y="133" font-size="11">4. Each voter U_i independently picks sk_i ∈ [0, N²)  (no key dealer, TP does not know sk_i)</text>
+  <text x="50" y="150" font-size="10" font-style="italic">   Assumptions: A1 (N=pq, odd primes), A2 (sk_A ≠ H, gcd(sk_A,N)=1)</text>
 
   <!-- Arrow down -->
-  <line x1="410" y1="150" x2="410" y2="165" stroke="black" stroke-width="1.5"/>
-  <polygon points="406,160 410,168 414,160" fill="black"/>
+  <line x1="410" y1="160" x2="410" y2="175" stroke="black" stroke-width="1.5"/>
+  <polygon points="406,170 410,178 414,170" fill="black"/>
 
-  <!-- ===== PHASE 2: VOTER ENCRYPTION ===== -->
-  <rect x="30" y="170" width="370" height="130" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
-  <rect x="30" y="170" width="370" height="22" fill="#e8e8e8" stroke="black" stroke-width="0.5"/>
-  <text x="50" y="186" font-size="12" font-weight="bold">Phase 2 — Voter U_i (Browser/WASM)</text>
+  <!-- ===== PHASE 2: VOTER ===== -->
+  <rect x="30" y="180" width="380" height="180" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
+  <rect x="30" y="180" width="380" height="22" fill="#e8e8e8" stroke="black" stroke-width="0.5"/>
+  <text x="50" y="196" font-size="12" font-weight="bold">Phase 2 — Voter U_i (Browser / WASM)</text>
 
-  <text x="50" y="208" font-size="11">1. Select candidate → vote vector v_i</text>
-  <text x="50" y="223" font-size="11">2. Pack: m_i = Σ v_{i,j} · 2^{25(k-j)}</text>
-  <text x="50" y="238" font-size="11">3. Encrypt: c_i = H^{sk_i} · (1+N)^{m_i} mod N²</text>
-  <text x="50" y="253" font-size="11">4. Compute: aux_i = pk_A^{sk_i} mod N²</text>
-  <text x="50" y="272" font-size="10" font-style="italic">   (sk_i serves as both secret key and randomness r)</text>
-  <text x="50" y="288" font-size="10" fill="#555">   Performed in WebAssembly (libtommath, Emscripten)</text>
+  <text x="50" y="218" font-size="11" font-weight="bold">Step 1: Select candidate → vote vector</text>
+  <text x="65" y="233" font-size="10">e.g., candidate 2 of 3 → v = [0, 1, 0]</text>
 
-  <!-- Arrows: c_i → Aggregator, aux_i → Collector -->
-  <line x1="400" y1="225" x2="450" y2="225" stroke="black" stroke-width="1"/>
-  <text x="420" y="218" font-size="9">c_i</text>
-  <polygon points="446,221 454,225 446,229" fill="black"/>
+  <text x="50" y="253" font-size="11" font-weight="bold">Step 2: Pack into integer (25-bit slots)</text>
+  <text x="65" y="268" font-size="10">m = v_1·2^50 + v_2·2^25 + v_3·2^0 = 2^25</text>
 
-  <line x1="400" y1="250" x2="450" y2="310" stroke="black" stroke-width="1"/>
-  <text x="415" y="285" font-size="9">aux_i</text>
+  <text x="50" y="288" font-size="11" font-weight="bold">Step 3: Paillier encrypt (sk_i = randomness r_i)</text>
+  <text x="65" y="303" font-size="10">c_i = H^{sk_i} · (1+N)^m mod N²</text>
+
+  <text x="50" y="323" font-size="11" font-weight="bold">Step 4: Compute auxiliary value</text>
+  <text x="65" y="338" font-size="10">aux_i = pk_A^{sk_i} = H^{sk_A · sk_i} mod N²</text>
+
+  <text x="50" y="355" font-size="10" font-style="italic">   Assumptions: A4 (k·25 &lt; log₂ N), A5 (v_{i,j} ∈ {0,1}), A6 (sk_i = r_i)</text>
+
+  <!-- Arrows out of voter -->
+  <line x1="410" y1="280" x2="460" y2="280" stroke="black" stroke-width="1.5"/>
+  <polygon points="456,277 464,280 456,283" fill="black"/>
+  <text x="430" y="272" font-size="10" font-weight="bold">c_i</text>
+  <text x="425" y="293" font-size="8" fill="#555">(to chain + DB)</text>
+
+  <line x1="410" y1="330" x2="460" y2="330" stroke="black" stroke-width="1.5"/>
+  <polygon points="456,327 464,330 456,333" fill="black"/>
+  <text x="430" y="322" font-size="10" font-weight="bold">aux_i</text>
+  <text x="425" y="343" font-size="8" fill="#555">(to collector)</text>
 
   <!-- ===== PHASE 3: COLLECTOR ===== -->
-  <rect x="440" y="300" width="350" height="90" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
-  <rect x="440" y="300" width="350" height="22" fill="#e8e8e8" stroke="black" stroke-width="0.5"/>
-  <text x="460" y="316" font-size="12" font-weight="bold">Phase 3 — Collector C</text>
+  <rect x="460" y="280" width="330" height="100" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
+  <rect x="460" y="280" width="330" height="22" fill="#e8e8e8" stroke="black" stroke-width="0.5"/>
+  <text x="480" y="296" font-size="12" font-weight="bold">Phase 3 — Collector C</text>
 
-  <text x="460" y="338" font-size="11">Receives all aux_i from voters</text>
-  <text x="460" y="353" font-size="11">Computes: aux = Π aux_i mod N²</text>
-  <text x="460" y="368" font-size="11">         = H^{sk_A · Σ sk_i} mod N²</text>
-  <text x="460" y="383" font-size="11">Sends aux → Aggregator A</text>
+  <text x="480" y="318" font-size="11">Receives all aux_i from voters</text>
+  <text x="480" y="335" font-size="11">Computes product:</text>
+  <text x="490" y="350" font-size="10">aux = Π aux_i mod N²</text>
+  <text x="490" y="365" font-size="10">    = H^{sk_A · Σ sk_i} mod N²</text>
+  <text x="480" y="376" font-size="10">Sends aux → Aggregator A</text>
 
   <!-- Arrow aux → Aggregator -->
-  <line x1="615" y1="390" x2="615" y2="430" stroke="black" stroke-width="1"/>
-  <text x="625" y="415" font-size="9">aux</text>
-  <polygon points="611,425 615,433 619,425" fill="black"/>
+  <line x1="625" y1="380" x2="625" y2="420" stroke="black" stroke-width="1.5"/>
+  <polygon points="621,415 625,423 629,415" fill="black"/>
+  <text x="640" y="405" font-size="10" font-weight="bold">aux</text>
 
-  <!-- Arrow c_i → Aggregator (continued) -->
-  <line x1="454" y1="225" x2="615" y2="225" stroke="black" stroke-width="1"/>
-  <line x1="615" y1="225" x2="615" y2="430" stroke="black" stroke-width="1" stroke-dasharray="4,2"/>
-  <text x="625" y="350" font-size="9" fill="#555">{c_i}</text>
-
-  <!-- Arrow down from voter phase -->
-  <line x1="215" y1="300" x2="215" y2="430" stroke="black" stroke-width="1" stroke-dasharray="4,2"/>
-  <text x="225" y="370" font-size="9" fill="#555">store c_i, aux_i</text>
+  <!-- Arrow c_i → Aggregator (long path) -->
+  <line x1="464" y1="280" x2="625" y2="280" stroke="black" stroke-width="1" stroke-dasharray="4,2"/>
+  <line x1="625" y1="280" x2="625" y2="420" stroke="black" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="640" y="360" font-size="9" fill="#555" font-style="italic">{c_i}</text>
 
   <!-- ===== PHASE 4: AGGREGATION ===== -->
-  <rect x="30" y="440" width="760" height="280" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
-  <rect x="30" y="440" width="760" height="22" fill="#e8e8e8" stroke="black" stroke-width="0.5"/>
-  <text x="50" y="456" font-size="12" font-weight="bold">Phase 4 — Aggregator A (Native libtommath C Module)</text>
+  <rect x="30" y="430" width="760" height="320" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
+  <rect x="30" y="430" width="760" height="22" fill="#e8e8e8" stroke="black" stroke-width="0.5"/>
+  <text x="50" y="446" font-size="12" font-weight="bold">Phase 4 — Aggregator A (Native C / libtommath)</text>
 
-  <text x="50" y="478" font-size="11" font-weight="bold">Input:</text>
-  <text x="120" y="478" font-size="11">ciphertexts {c_1,...,c_n}, aux, (N, H, sk_A)</text>
+  <text x="50" y="470" font-size="11" font-weight="bold">Input:</text>
+  <text x="130" y="470" font-size="11">ciphertexts {c_1, ..., c_n}, aux, (N, H, sk_A)</text>
 
-  <text x="50" y="503" font-size="11" font-weight="bold">Step 1. Product:</text>
-  <text x="170" y="503" font-size="11">Π = Π c_i mod N² = (1 + S·N) · H^{Σ sk_i} mod N²</text>
-  <text x="170" y="517" font-size="10" fill="#555">where S = Σ x_i (binomial expansion in Z_{N²})</text>
+  <line x1="50" y1="480" x2="770" y2="480" stroke="black" stroke-width="0.3"/>
 
-  <text x="50" y="540" font-size="11" font-weight="bold">Step 2. Exponentiate:</text>
-  <text x="170" y="540" font-size="11">P = Π^{sk_A} mod N² = (1+S·N)^{sk_A} · H^{sk_A·Σ sk_i} mod N²</text>
+  <text x="50" y="500" font-size="11" font-weight="bold">Step 1. Product of ciphertexts</text>
+  <text x="65" y="515" font-size="10">Π = Π_{i=1}^{n} c_i mod N²</text>
+  <text x="65" y="528" font-size="10" fill="#444">  = [Π (1 + x_i·N)] · H^{Σ sk_i} mod N²   (binomial expansion, Lemma 1)</text>
+  <text x="65" y="541" font-size="10" fill="#444">  = (1 + S·N) · H^{Σ sk_i} mod N²           where S = Σ x_i</text>
 
-  <text x="50" y="565" font-size="11" font-weight="bold">Step 3. Cancel mask:</text>
-  <text x="170" y="565" font-size="11">P' = P · aux^{-1} mod N² = (1+S·N)^{sk_A} mod N²</text>
-  <text x="170" y="579" font-size="10" fill="#555">aux^{-1} exists because gcd(H, N²)=1 (N is valid semiprime)</text>
+  <text x="50" y="562" font-size="11" font-weight="bold">Step 2. Exponentiate by sk_A</text>
+  <text x="65" y="577" font-size="10">P = Π^{sk_A} mod N²</text>
+  <text x="65" y="590" font-size="10" fill="#444">  = (1 + S·N)^{sk_A} · H^{sk_A · Σ sk_i} mod N²</text>
 
-  <text x="50" y="602" font-size="11" font-weight="bold">Step 4. L-function:</text>
-  <text x="170" y="602" font-size="11">L(P') = (P' − 1) / N = sk_A · S mod N</text>
-  <text x="170" y="616" font-size="10" fill="#555">(1+S·N)^{sk_A} ≡ 1 + sk_A·S·N mod N²  (higher terms vanish)</text>
+  <text x="50" y="612" font-size="11" font-weight="bold">Step 3. Cancel mask with aux</text>
+  <text x="65" y="627" font-size="10">P' = P · aux^{-1} mod N²</text>
+  <text x="65" y="640" font-size="10" fill="#444">  = (1 + S·N)^{sk_A} · H^{sk_A·Σsk_i} · H^{-sk_A·Σsk_i} mod N²</text>
+  <text x="65" y="653" font-size="10" fill="#444">  = (1 + S·N)^{sk_A} mod N²                    (Theorem 2: mask cancelled)</text>
 
-  <text x="50" y="640" font-size="11" font-weight="bold">Step 5. Recover sum:</text>
-  <text x="170" y="640" font-size="11">R = L(P') · sk_A^{-1} mod N = S mod N</text>
-  <text x="170" y="654" font-size="10" fill="#555">sk_A^{-1} exists because gcd(sk_A, N) = 1 by construction</text>
+  <text x="50" y="675" font-size="11" font-weight="bold">Step 4. Apply L-function</text>
+  <text x="65" y="690" font-size="10">L(P') = (P' − 1) / N = sk_A · S mod N    (binomial: (1+SN)^{sk_A} ≡ 1 + sk_A·S·N mod N²)</text>
 
-  <text x="50" y="677" font-size="11" font-weight="bold">Step 6. Unpack:</text>
-  <text x="170" y="677" font-size="11">For j = 1..k: count_j = (R ≫ 25(k−j)) mod 2²⁵</text>
-  <text x="170" y="691" font-size="10" fill="#555">25-bit slots, reverse order (candidate 1 at MSB)</text>
+  <text x="50" y="712" font-size="11" font-weight="bold">Step 5. Multiply by sk_A^{-1} to recover sum</text>
+  <text x="65" y="727" font-size="10">R = L(P') · sk_A^{-1} mod N = S mod N     (Theorem 3)</text>
+  <text x="65" y="740" font-size="10" fill="#444">  Since S &lt; N (Assumption A3): R = S exactly</text>
 
   <!-- Arrow down -->
-  <line x1="410" y1="720" x2="410" y2="740" stroke="black" stroke-width="1.5"/>
-  <polygon points="406,735 410,743 414,735" fill="black"/>
+  <line x1="410" y1="750" x2="410" y2="770" stroke="black" stroke-width="1.5"/>
+  <polygon points="406,765 410,773 414,765" fill="black"/>
 
-  <!-- ===== PHASE 5: RESULT ===== -->
-  <rect x="30" y="750" width="760" height="70" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
-  <rect x="30" y="750" width="760" height="22" fill="#e8e8e8" stroke="black" stroke-width="0.5"/>
-  <text x="50" y="766" font-size="12" font-weight="bold">Phase 5 — Result</text>
+  <!-- ===== PHASE 5: PUBLISH ===== -->
+  <rect x="30" y="780" width="760" height="100" fill="none" stroke="black" stroke-width="1.5" rx="3"/>
+  <rect x="30" y="780" width="760" height="22" fill="#e8e8e8" stroke="black" stroke-width="0.5"/>
+  <text x="50" y="796" font-size="12" font-weight="bold">Phase 5 — Unpack &amp; Publish Results</text>
 
-  <text x="50" y="790" font-size="11">R = Σ x_i = Σ_{i=1}^{n} Σ_{j=1}^{k} v_{i,j} · 2^{25(k-j)}</text>
-  <text x="50" y="808" font-size="11">Vote counts: [count_1, count_2, ..., count_k]  where count_j = Σ_i v_{i,j}</text>
+  <text x="50" y="818" font-size="11">R = Σ x_i = Σ_{i=1}^{n} [v_{i,1}·2^{25(k-1)} + v_{i,2}·2^{25(k-2)} + ... + v_{i,k}·2^0]</text>
+  <text x="50" y="835" font-size="11">  = Σ_j [ (Σ_i v_{i,j}) · 2^{25(k-j)} ]     (slots are independent, Corollary 1)</text>
+  <text x="50" y="855" font-size="11">Extract: count_j = (R ≫ 25(k−j)) mod 2²⁵   for j = 1..k</text>
+  <text x="50" y="872" font-size="11">Publish: [count_1, count_2, ..., count_k]  →  Portal visualization + on-chain record</text>
 
-  <!-- Assumptions box -->
-  <rect x="30" y="840" width="760" height="130" fill="none" stroke="black" stroke-width="1" stroke-dasharray="3,2" rx="3"/>
-  <text x="50" y="858" font-size="11" font-weight="bold">Assumptions for correctness:</text>
-  <text x="60" y="875" font-size="10">(A1) N = p·q where p, q are odd primes  →  gcd(aux, N²) = 1, gcd(sk_A, N) = 1</text>
-  <text x="60" y="890" font-size="10">(A2) sk_A ≠ H  (non-degenerate key)  →  pk_A ≠ H, decryption non-trivial</text>
-  <text x="60" y="905" font-size="10">(A3) S = Σ x_i &lt; N  →  modular reduction is exact, R = S (no wraparound)</text>
-  <text x="60" y="920" font-size="10">(A4) k · 25 &lt; log₂ N  →  packed votes fit in single Paillier plaintext</text>
-  <text x="60" y="935" font-size="10">(A5) Each v_{i,j} ∈ {0,1}  →  slot sums Σ v_{i,j} &lt; 2²⁵ (no overflow per candidate)</text>
-  <text x="60" y="950" font-size="10">(A6) sk_i = r_i (voter uses secret key as encryption randomness)  →  aux_i = pk_A^r_i cancels H^r_i</text>
-  <text x="60" y="965" font-size="10" font-style="italic">Under DCR assumption: individual c_i and aux_i are semantically secure (indistinguishable from random in Z*_{N²})</text>
+  <!-- ===== ASSUMPTIONS BOX ===== -->
+  <rect x="30" y="900" width="760" height="140" fill="none" stroke="black" stroke-width="1" stroke-dasharray="4,3" rx="3"/>
+  <text x="50" y="920" font-size="11" font-weight="bold">Assumptions for Correctness (referenced in proofs):</text>
+  <text x="60" y="938" font-size="10">(A1) N = p·q, p and q distinct odd primes → Z*_{N²} well-defined, inverses exist</text>
+  <text x="60" y="953" font-size="10">(A2) sk_A ≠ H and gcd(sk_A, N) = 1 → non-degenerate key, sk_A^{-1} mod N exists</text>
+  <text x="60" y="968" font-size="10">(A3) S = Σ x_i &lt; N → R = S mod N = S (exact, no wraparound)</text>
+  <text x="60" y="983" font-size="10">(A4) k × 25 &lt; log₂ N → packed vote fits in single Paillier plaintext</text>
+  <text x="60" y="998" font-size="10">(A5) v_{i,j} ∈ {0,1} and Σ_i v_{i,j} &lt; 2²⁵ → no per-slot overflow</text>
+  <text x="60" y="1013" font-size="10">(A6) sk_i = r_i (key as randomness) → aux_i = pk_A^{r_i} cancels H^{r_i} in aggregation</text>
+  <text x="60" y="1033" font-size="10" font-style="italic">Privacy: Under DCR assumption, c_i and aux_i are indistinguishable from random in Z*_{N²}</text>
 </svg>
