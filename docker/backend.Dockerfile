@@ -22,9 +22,12 @@ COPY deps ./deps
 COPY common ./common
 COPY aggregator ./aggregator
 
-# If deps/libtommath is empty (submodule not initialized), clone it
+# If submodules are empty (fresh clone without --recursive), clone them
 RUN if [ ! -d deps/libtommath/.git ]; then \
       git clone https://github.com/libtom/libtommath.git deps/libtommath; \
+    fi
+RUN if [ ! -d deps/curl/.git ]; then \
+      git clone https://github.com/curl/curl.git deps/curl; \
     fi
 
 # Build native aggregator addon (libtommath)
