@@ -1,0 +1,212 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: backend
+      
+      - name: Run TypeScript check
+        run: npx tsc --noEmit
+        working-directory: backend
+      
+      - name: Run Prettier
+        run: npx prettier --check "src/**/*.ts"
+        working-directory: backend
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: voting_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: backend
+      
+      - name: Setup database
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/voting_test?sslmode=disable
+      
+      - name: Run tests
+        run: npm test
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/voting_test?sslmode=disable
+          NODE_ENV: test
+
+  build-wasm:
+    name: Build WASM Module
+    runs-on: ubuntu-latest
+    needs: lint
+    container:
+      image: emscripten/emsdk:4.0.6
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build WASM
+        run: |
+          apt-get update && apt-get install -y cmake build-essential
+          mkdir -p build-wasm
+          cd build-wasm
+          emcmake cmake ../frontend/src/wasm -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release --parallel $(nproc)
+      
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-build
+          path: |
+            build-wasm/encryption.js
+            build-wasm/encryption.wasm
+          retention-days: 7
+
+  solana-test:
+    name: Solana Program Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    container:
+      image: rust:1.78
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          export PATH="/root/.local/share/solana/install/active_release/bin:$PATH"
+      
+      - name: Install Anchor
+        run: |
+          cargo install anchor-cli --version 0.30.1 --locked
+      
+      - name: Build Solana program
+        run: |
+          export PATH="/root/.local/share/solana/install/active_release/bin:$PATH"
+          cargo install sfv
+          cargo build-sbf --release
+      
+      - name: Run tests
+        run: |
+          export PATH="/root/.local/share/solana/install/active_release/bin:/root/.cargo/bin:$PATH"
+          anchor test --skip-local-validator
+
+  docker-build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test, build-wasm]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download WASM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-build
+          path: frontend/public/assets/
+      
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      
+      - name: Build and push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/backend.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/frontend.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-frontend
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy notification
+        run: |
+          echo "Deployment would happen here"
+          echo "Configure your deployment target (Kubernetes, Docker Swarm, etc.)"

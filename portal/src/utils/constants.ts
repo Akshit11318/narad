@@ -86,6 +86,7 @@ export const ROUTES = {
   VOTING: "/voting",
   LOGOUT: "/logout",
   HELP: "/help",
+  ADMIN: "/admin",
   VERIFY: "/verify",
 } as const;
 

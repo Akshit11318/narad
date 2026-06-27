@@ -24,7 +24,7 @@ let addonPath = path.resolve(
   __dirname,
   "..",
   "build",
-  // "build",
+  "build",
   "Release",
   "aggregator.node"
 );

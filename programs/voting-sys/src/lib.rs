@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 
-declare_id!("GuhBQikgkW5Pu6NLLVe6Xezh5iJjxr9YDdu4NzhnxM4m");
+declare_id!("RhzKgCXcLLN1pJKLHK2MDbP6n8ijLW5pNWTDpfvsDKM");
 
 #[program]
 pub mod voting_sys {
@@ -16,9 +16,9 @@ pub mod voting_sys {
         election.total_candidates = total_candidates;
         // election.voter_whitelist = Vec::new();
         election.candidate_whitelist = Vec::new();
-        election.n = String::from("a94337c30ddffe19568c42e4865e088c756e023111e305c8e7454e6ef12fd85e99c68e306cd6a6945e78915d1aba494ae575fa174a82abd4c2c7c66dd2982a6a");
-        election.h = String::from("d5fe5496895615b93b7bd501f94c390bdb942bf41ab18d1917dfd3aefc1e1952f23f4504700b5eeec7186bc6dec990db64b9ea1eadce566e21b6f8429565cc0");
-        election.ska = String::from("d5fe5496895615b93b7bd501f94c390bdb942bf41ab18d1917dfd3aefc1e1952f23f4504700b5eeec7186bc6dec990db64b9ea1eadce566e21b6f8429565cc0");
+        election.n = String::from("400000000000000000000000211d1b86000000000000000001b131395144546b");
+        election.h = String::from("2e0f69afca2410fda28718e5623a7a755531ae6dd30a286ec6737b8b2a6a7b61");
+        election.ska = String::from("2481c95a9eb72624f93de30ccd1118fbccfb637cd367ad167433a866751833b");
         election.collector_pkc = String::from("0");
         election.auxt = String::from("0");
 

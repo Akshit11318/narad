@@ -1,0 +1,59 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+yarn.lock
+package-lock.json
+
+# Build outputs
+dist
+build
+build-wasm
+target
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (will be provided by Docker)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+
+# Test files
+tests
+coverage
+.nyc_output
+
+# Documentation
+*.md
+docs
+*.pdf
+
+# Temporary
+tmp
+temp
+.cache
+
+# Anchor
+.anchor
+test-ledger
+
+# Misc
+*.bak
+*.orig

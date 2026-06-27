@@ -1,0 +1,107 @@
+name: narad
+
+services:
+  narad-postgres:
+    image: postgres:16-alpine
+    container_name: narad-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: voting
+    ports:
+      - "5432:5432"
+    volumes:
+      - narad_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  narad-solana:
+    image: tchambard/solana-test-validator:latest
+    container_name: narad-solana
+    restart: unless-stopped
+    ports:
+      - "8899:8899"
+      - "8900:8900"
+    volumes:
+      - .:/working-dir:rw
+    working_dir: /working-dir
+    entrypoint: ["bash", "-c"]
+    command: >
+      "mkdir -p /tmp/ledger &&
+       solana-test-validator --rpc-port 8899 --ledger /tmp/ledger --reset"
+    healthcheck:
+      test: ["CMD-SHELL", "solana cluster-version --url http://localhost:8899 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  narad-wallet:
+    image: tchambard/solana-test-validator:latest
+    container_name: narad-wallet
+    restart: unless-stopped
+    depends_on:
+      narad-solana:
+        condition: service_healthy
+    volumes:
+      - .:/working-dir:rw
+      - narad_solana_wallet:/home/ubuntu/.config/solana
+    working_dir: /working-dir
+    entrypoint: ["bash", "-c"]
+    command: >
+      "mkdir -p /home/ubuntu/.config/solana &&
+       solana config set --url http://narad-solana:8899 &&
+       solana-keygen new --no-bip39-passphrase --force &&
+       sleep 3 &&
+       solana airdrop 100 &&
+       echo 'NARAD Wallet ready!' &&
+       tail -f /dev/null"
+    profiles:
+      - wallet
+      - full
+
+  narad-backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    image: narad/backend:latest
+    container_name: narad-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@narad-postgres:5432/voting?sslmode=disable
+      SOLANA_RPC_URL: http://narad-solana:8899
+      JWT_SECRET: change-me-in-production
+    depends_on:
+      narad-postgres:
+        condition: service_healthy
+      narad-solana:
+        condition: service_healthy
+    volumes:
+      - narad_solana_wallet:/root/.config/solana
+
+  narad-portal:
+    build:
+      context: .
+      dockerfile: docker/portal.Dockerfile
+    image: narad/portal:latest
+    container_name: narad-portal
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - narad-backend
+
+volumes:
+  narad_postgres_data:
+  narad_solana_wallet:
+
+networks:
+  default:
+    name: narad-network

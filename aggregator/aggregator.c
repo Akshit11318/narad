@@ -134,73 +134,25 @@ int aggregator_init(AggregatorParams* params, const BigInt* N, const BigInt* H, 
         params->sk_A_mod_N = result;
     }
     
-    fprintf(stderr, "[DEBUG] Calculating modular inverse of sk_A\n");
+    fprintf(stderr, "[DEBUG] Calculating modular inverse of sk_A mod N\n");
     
-    // MODIFIED: First check if skA and N are coprime (required for modular inverse to exist)
-    BigInt gcd_result;
-    int gcd_status = gcd(sk_A, N, &gcd_result);
-    if (gcd_status != 0) {
+    // Directly compute modular inverse using libtommath's mp_invmod
+    // Skip the GCD pre-check — if inverse doesn't exist, mp_invmod will fail
+    params->sk_A_inv.data = NULL;
+    params->sk_A_inv.length = 0;
+    
+    int inv_status = modular_inverse(&params->sk_A_mod_N, N, &params->sk_A_inv);
+    if (inv_status != 0) {
         free(params->N.data);
         free(params->H.data);
         free(params->sk_A.data);
         free(params->N_squared.data);
         free(params->sk_A_mod_N.data);
-        fprintf(stderr, "[ERROR] Failed to compute GCD: %d\n", gcd_status);
+        fprintf(stderr, "[ERROR] Failed to compute modular inverse of sk_A: %d\n", inv_status);
         return -3;
     }
     
-    // Check if GCD is 1 (coprime)
-    uint8_t one_val = 1;
-    BigInt one = create_bigint(&one_val, 1);
-    if (compare_bigint(&gcd_result, &one) != 0) {
-        free(params->N.data);
-        free(params->H.data);
-        free(params->sk_A.data);
-        free(params->N_squared.data);
-        free(params->sk_A_mod_N.data);
-        free_bigint(&gcd_result);
-        free_bigint(&one);
-        fprintf(stderr, "[ERROR] sk_A is not invertible modulo N (not coprime)\n");
-        
-        // For testing, just use 1 as the inverse to bypass this issue
-        params->sk_A_inv.length = 1;
-        params->sk_A_inv.data = (uint8_t*)malloc(1);
-        if (params->sk_A_inv.data) {
-            params->sk_A_inv.data[0] = 1;
-        } else {
-            return -2;
-        }
-        
-        // Continue with initialization rather than failing
-        fprintf(stderr, "[WARNING] Using 1 as modular inverse for testing\n");
-    } else {
-        free_bigint(&gcd_result);
-        free_bigint(&one);
-        
-        // Calculate modular inverse of sk_A mod N
-        params->sk_A_inv.data = NULL;
-        params->sk_A_inv.length = 0;
-        
-        int inv_status = modular_inverse(&params->sk_A_mod_N, N, &params->sk_A_inv);
-        if (inv_status != 0) {
-            free(params->N.data);
-            free(params->H.data);
-            free(params->sk_A.data);
-            free(params->N_squared.data);
-            free(params->sk_A_mod_N.data);
-            fprintf(stderr, "[ERROR] Failed to compute modular inverse: %d\n", inv_status);
-            
-            // For testing, use 1 as the inverse
-            params->sk_A_inv.length = 1;
-            params->sk_A_inv.data = (uint8_t*)malloc(1);
-            if (params->sk_A_inv.data) {
-                params->sk_A_inv.data[0] = 1;
-                fprintf(stderr, "[WARNING] Using 1 as modular inverse for testing\n");
-            } else {
-                return -2;
-            }
-        }
-    }
+    fprintf(stderr, "[DEBUG] Modular inverse of sk_A computed successfully\n");
     
     fprintf(stderr, "[DEBUG] Setting up running product\n");
     

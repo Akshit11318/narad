@@ -117,9 +117,9 @@ std::vector<uint8_t> HexToUint8Array(const std::string& hex) {
         }
     }
     
-    std::vector<uint8_t> bytes(cleanHex.length() / 2);
+    std::vector<uint8_t> bytesBigEndian(cleanHex.length() / 2);
     
-    // Convert hex string to bytes
+    // Convert hex string to bytes (big-endian, MSB first)
     for (size_t i = 0; i < cleanHex.length(); i += 2) {
         try {
             // Convert hex string to byte value
@@ -128,23 +128,26 @@ std::vector<uint8_t> HexToUint8Array(const std::string& hex) {
             
             // Use sscanf which is more reliable for hex conversion
             if (sscanf(byteStr.c_str(), "%2x", &byteVal) == 1) {
-                bytes[i / 2] = static_cast<uint8_t>(byteVal);
+                bytesBigEndian[i / 2] = static_cast<uint8_t>(byteVal);
             } else {
                 // If conversion fails, set to 0
-                bytes[i / 2] = 0;
+                bytesBigEndian[i / 2] = 0;
                 fprintf(stderr, "[ERROR] Error converting hex value: %s\n", byteStr.c_str());
             }
         } catch (const std::exception& e) {
-            bytes[i / 2] = 0;
+            bytesBigEndian[i / 2] = 0;
             fprintf(stderr, "[ERROR] Exception in hex conversion: %s\n", e.what());
         }
     }
     
     // Validate the resulting byte array is not empty
-    if (bytes.empty()) {
+    if (bytesBigEndian.empty()) {
         fprintf(stderr, "[ERROR] Resulting byte array is empty\n");
-        bytes.push_back(0);
+        bytesBigEndian.push_back(0);
     }
+    
+    // Reverse to little-endian (BigInt convention in this codebase)
+    std::vector<uint8_t> bytes(bytesBigEndian.rbegin(), bytesBigEndian.rend());
     
     return bytes;
 }

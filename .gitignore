@@ -1,19 +1,62 @@
-.anchor
-.DS_Store
-target
-**/*.rs.bk
-node_modules
-test-ledger
-.yarn
-wallet.txt
-dist
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+build-wasm/
+target/
+
+# Environment files
 .env
-TODO.md
-package-lock.json
-yarn.lock
-cargo.lock
-target
-build
-scripts
-.vscode
-build-wasm
+.env.local
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Anchor/Solana
+.anchor/
+test-ledger/
+
+# Cache
+.cache/
+*.cache
+
+# Temporary
+tmp/
+temp/
+
+# Misc
+*.bak
+*.orig
+
+# ZKP documentation (internal)
+ZKP_*.md
+ZKP_*.pdf
+
+# Test results (generated)
+test_results_*.json
+test_report_*.md
+
+# Docker volumes
+narad_*/
+
+# PDFs
+*.pdf

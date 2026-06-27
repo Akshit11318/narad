@@ -2,9 +2,6 @@ import { useState, useEffect } from "react";
 import "./App.css";
 import {
   loadWasmModule,
-  generateSecretKey,
-  getSecretKey,
-  initCryptoParams,
   setupElection,
   formatByteArray,
   submitVote,
@@ -16,7 +13,6 @@ import {
   Routes,
   Route,
   Navigate,
-  useParams,
   useNavigate,
 } from "react-router-dom";
 
@@ -27,25 +23,15 @@ interface ElectionData {
   ska: Uint8Array | number[];
 }
 
-// ClientVoteView component to replace the ClientVote.js component
 interface ClientVoteViewProps {
   electionData: ElectionData;
 }
 
 const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
-  const [selectedCandidate, setSelectedCandidate] = useState<number | null>(
-    null
-  );
+  const [selectedCandidate, setSelectedCandidate] = useState<number | null>(null);
   const [voterID, setVoterID] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const navigate = useNavigate();
 
-  // Function to handle candidate selection
-  const handleCandidateSelect = (candidateId: number) => {
-    setSelectedCandidate(candidateId);
-  };
-
-  // Function to handle voter ID input change
   const handleVoterIDChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setVoterID(e.target.value);
   };
@@ -63,7 +49,17 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
 
     try {
       setSubmitting(true);
-      console.log(electionData);
+
+      let electionId = "default-election-id";
+      const urlParams = new URLSearchParams(window.location.search);
+      const electionIdFromUrl = urlParams.get("electionId");
+      if (electionIdFromUrl) {
+        electionId = electionIdFromUrl;
+      } else {
+        const storedElectionId = localStorage.getItem("selectedElectionId");
+        if (storedElectionId) electionId = storedElectionId;
+      }
+
       await submitVote(selectedCandidate, voterID, {
         n: electionData.n,
         h: electionData.h,
@@ -71,9 +67,7 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
       });
 
       toast.success(`Vote submitted successfully for ${voterID}!`);
-      // Don't navigate away, just clear the form for another vote
       setSelectedCandidate(null);
-      // Keep the voter ID in case user wants to vote again with same ID
     } catch (error) {
       console.error("Error submitting vote:", error);
       toast.error("Failed to submit vote. Please try again.");
@@ -84,7 +78,6 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
 
   return (
     <div className="app-container">
-      {/* Top Banner with Election Parameters */}
       <div className="election-banner">
         <div className="election-param">
           <span className="param-label">N:</span>
@@ -96,30 +89,29 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
         </div>
         <div className="election-param">
           <span className="param-label">SKA:</span>
-          <span className="param-value">
-            {formatByteArray(electionData.ska)}
-          </span>
+          <span className="param-value">{formatByteArray(electionData.ska)}</span>
         </div>
         <div className="election-status">
           <span className="status-indicator">Testing Deployment</span>
         </div>
-      </div>      <div className="main-content">
+      </div>
+      <div className="main-content">
         <h1>Select Your Candidate</h1>
         <p className="instruction">Choose one candidate and submit your vote</p>
-        
+
         <div className="voter-id-container" style={{ marginBottom: '20px' }}>
           <label htmlFor="voterId" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
             Voter ID:
           </label>
-          <input 
-            type="text" 
-            id="voterId" 
+          <input
+            type="text"
+            id="voterId"
             value={voterID}
             onChange={handleVoterIDChange}
             placeholder="Enter Voter ID"
-            style={{ 
-              padding: '10px', 
-              width: '100%', 
+            style={{
+              padding: '10px',
+              width: '100%',
               maxWidth: '300px',
               borderRadius: '4px',
               border: '1px solid #ccc',
@@ -133,9 +125,7 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
           {[1, 2, 3, 4].map((candidateId) => (
             <div
               key={candidateId}
-              className={`candidate-card ${
-                selectedCandidate === candidateId ? "selected" : ""
-              }`}
+              className={`candidate-card ${selectedCandidate === candidateId ? "selected" : ""}`}
               onClick={() => setSelectedCandidate(candidateId)}
             >
               <img
@@ -149,7 +139,8 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
               )}
             </div>
           ))}
-        </div>        <button
+        </div>
+        <button
           className="vote-button"
           onClick={handleSubmitVote}
           disabled={selectedCandidate === null || !voterID || submitting}
@@ -166,7 +157,7 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
         >
           {submitting ? "Submitting..." : "Cast Vote"}
         </button>
-        
+
         <p style={{ marginTop: "15px", fontSize: "14px", color: "#666" }}>
           You can cast multiple votes by changing the Voter ID and selecting a candidate again.
         </p>
@@ -179,61 +170,153 @@ const ClientVoteView = ({ electionData }: ClientVoteViewProps) => {
   );
 };
 
-function App() {
-  const [selectedCandidate, setSelectedCandidate] = useState<number | null>(
-    null
+interface ResultItem {
+  candidate: string;
+  votes: number;
+}
+
+function ResultsView() {
+  const [electionIdInput, setElectionIdInput] = useState("");
+  const [results, setResults] = useState<ResultItem[] | null>(null);
+  const [totalVotes, setTotalVotes] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchResults = async () => {
+    if (!electionIdInput.trim()) {
+      setError("Please enter an Election ID");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+      const res = await fetch(`${backendUrl}/api/aggregator/results/${electionIdInput.trim()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "No results found");
+        setResults(null);
+      } else {
+        setResults(data.data.decodedVotes || []);
+        setTotalVotes(data.data.decodedVotes?.reduce((s: number, r: ResultItem) => s + r.votes, 0) || 0);
+      }
+    } catch (err) {
+      setError("Failed to fetch results");
+      setResults(null);
+    }
+    setLoading(false);
+  };
+
+  const maxVotes = results ? Math.max(...results.map(r => r.votes), 1) : 1;
+  const colors = ["#3b82f6", "#8b5cf6", "#ec4899", "#ef4444", "#f59e0b", "#10b981", "#06b6d4", "#6366f1", "#f97316", "#84cc16"];
+
+  return (
+    <div className="results-container">
+      <div className="main-content">
+        <h1>Election Results</h1>
+        <p className="instruction">Enter an Election ID to view live aggregation results</p>
+
+        <div style={{ display: "flex", gap: "8px", marginBottom: "20px", maxWidth: "500px" }}>
+          <input
+            type="text"
+            value={electionIdInput}
+            onChange={(e) => setElectionIdInput(e.target.value)}
+            placeholder="Enter Election ID (public key)"
+            style={{
+              flex: 1, padding: "10px", borderRadius: "6px",
+              border: "1px solid #444", backgroundColor: "#1a1a2e",
+              color: "#fff", fontSize: "14px"
+            }}
+          />
+          <button
+            onClick={fetchResults}
+            disabled={loading}
+            style={{
+              padding: "10px 20px", borderRadius: "6px", border: "none",
+              backgroundColor: loading ? "#555" : "#4CAF50", color: "#fff",
+              cursor: loading ? "wait" : "pointer", fontSize: "14px", fontWeight: "bold"
+            }}
+          >
+            {loading ? "Loading..." : "Get Results"}
+          </button>
+        </div>
+
+        {error && (
+          <div style={{ padding: "12px", backgroundColor: "#2a1a1a", border: "1px solid #ef4444", borderRadius: "6px", color: "#ef4444", marginBottom: "16px" }}>
+            {error}
+          </div>
+        )}
+
+        {results && results.length > 0 && (
+          <div style={{ marginTop: "20px" }}>
+            <h2 style={{ color: "#ccc" }}>Total Votes: <span style={{ color: "#4CAF50" }}>{totalVotes}</span></h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "24px" }}>
+              {results.map((item, idx) => {
+                const pct = Math.round((item.votes / maxVotes) * 100);
+                const color = colors[idx % colors.length];
+                return (
+                  <div key={idx}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                      <span style={{ color: "#ddd", fontSize: "15px", fontWeight: "500" }}>{item.candidate}</span>
+                      <span style={{ color: "#fff", fontSize: "15px", fontWeight: "bold" }}>{item.votes} votes</span>
+                    </div>
+                    <div style={{
+                      width: "100%", height: "28px",
+                      backgroundColor: "#1a1a2e", borderRadius: "14px",
+                      overflow: "hidden", border: "1px solid #333"
+                    }}>
+                      <div style={{
+                        height: "100%",
+                        width: pct + "%",
+                        backgroundColor: color,
+                        borderRadius: "14px",
+                        transition: "width 0.8s ease-out",
+                        boxShadow: `0 0 10px ${color}40`,
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {results && results.length === 0 && !error && (
+          <div style={{ padding: "20px", backgroundColor: "#1a1a2e", borderRadius: "8px", color: "#888" }}>
+            No results available. Run aggregation in the Admin Panel first.
+          </div>
+        )}
+      </div>
+    </div>
   );
+}
+
+
+function App() {
   const [electionData, setElectionData] = useState<ElectionData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [wasmLoaded, setWasmLoaded] = useState<boolean>(false);
-  const [secretKey, setSecretKey] = useState<Uint8Array | null>(null);
-  const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // Load WebAssembly module and initialize crypto parameters on component mount
   useEffect(() => {
-    // Track initialization state to prevent duplicate logging
     let isInitialized = false;
 
     const setup = async () => {
       if (isInitialized) return;
 
       try {
-        console.log("Starting application setup...");
-
-        // Load WASM module first
         await loadWasmModule();
-        setWasmLoaded(true);
-
-        // Fetch election parameters from backend
         const params = await setupElection();
 
-        // Initialize crypto parameters with fetched values - setupElection already does this
-        // so we don't need to call initCryptoParams again
-
-        // Generate secret key
-        // const result = await generateSecretKey(params.n);
-        // if (result === 0) {
-        //   const key = await getSecretKey();
-        //   setSecretKey(key);
-        // } else {
-        //   console.error("Failed to generate secret key");
-        // }
-
-        // Create election data with fetched parameters
-        const electionData: ElectionData = {
+        const data: ElectionData = {
           id: "mock-election-id",
           n: params.n,
           h: params.h,
-          ska:
-            params.ska ||
-            new Uint8Array([111, 222, 111, 222, 111, 222, 111, 222]), // Use fetched SKA or fallback
+          ska: params.ska || new Uint8Array([111, 222, 111, 222, 111, 222, 111, 222]),
         };
 
-        setElectionData(electionData);
+        setElectionData(data);
         setLoading(false);
         isInitialized = true;
-        console.log("Application setup completed successfully");
       } catch (err) {
         console.error("Setup failed:", err);
         setError("Failed to initialize the application");
@@ -243,53 +326,6 @@ function App() {
 
     setup();
   }, []);
-
-  // Helper function to display byte arrays in a readable format
-  const formatByteArray = (array: Uint8Array | number[] | null): string => {
-    if (!array) return "Not available";
-
-    // Convert to hex string and limit display length
-    const hex = Array.from(array)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-
-    return hex.length > 20 ? `${hex.substring(0, 20)}...` : hex;
-  };
-
-  const handleCandidateSelect = (candidateId: number) => {
-    setSelectedCandidate(candidateId);
-  };
-
-  const handleSubmitVote = async () => {
-    if (selectedCandidate === null) {
-      toast.error("Please select a candidate");
-      return;
-    }
-
-    if (!electionData || !wasmLoaded) {
-      toast.error("System not ready. Please try again later.");
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-
-      // Submit the vote using the wasmModule function
-      await submitVote(selectedCandidate, "voter", {
-        n: electionData.n,
-        h: electionData.h,
-      });
-
-      toast.success("Vote submitted successfully!");
-      // Reset selection after successful submission
-      setSelectedCandidate(null);
-    } catch (error) {
-      console.error("Error submitting vote:", error);
-      toast.error("Failed to submit vote. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -315,57 +351,17 @@ function App() {
       <div className="app-container">
         <ToastContainer position="top-right" theme="dark" aria-label="Notifications" />
         <Routes>
-          <Route path="/" element={<Navigate to="/voter" />} />
+          <Route path="/" element={<ClientVoteView electionData={electionData!} />} />
           <Route
             path="/voter"
             element={<ClientVoteView electionData={electionData!} />}
           />
           <Route
             path="/results"
-            element={
-              <div className="results-container">
-                <div className="results-container">
-                  <div className="election-banner">
-                    <div className="election-param">
-                      <span className="param-label">N:</span>
-                      <span className="param-value">
-                        {formatByteArray(electionData?.n ?? null)}
-                      </span>
-                    </div>
-                    <div className="election-param">
-                      <span className="param-label">H:</span>
-                      <span className="param-value">
-                        {formatByteArray(electionData?.h ?? null)}
-                      </span>
-                    </div>
-                    <div className="election-param">
-                      <span className="param-label">SKA:</span>
-                      <span className="param-value">
-                        {formatByteArray(electionData?.ska ?? null)}
-                      </span>
-                    </div>
-                    <div className="election-status">
-                      <span className="status-indicator">
-                        Testing Deployment
-                      </span>
-                    </div>
-                  </div>
-                  <div className="main-content">
-                    <h1>Election Results</h1>
-                    <p className="instruction">
-                      Results will be displayed here after voting is complete
-                    </p>
-                    <div className="results-display">
-                      <div className="result-card">
-                        <h2>Vote Count</h2>
-                        <p>Waiting for votes to be tallied...</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            }
+            element={<ResultsView />}
           />
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </BrowserRouter>

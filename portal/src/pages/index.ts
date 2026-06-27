@@ -4,3 +4,4 @@ export { Dashboard } from "./Dashboard";
 export { Voting } from "./Voting";
 export { Logout } from "./Logout";
 export { Help } from "./Help";
+export { default as AdminPanel } from "./admin/AdminPanel";

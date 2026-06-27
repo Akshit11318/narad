@@ -10,12 +10,10 @@ import type { LoginCredentials, RegisterData } from "../types";
 import { API_ENDPOINTS, ERROR_MESSAGES, ROUTES } from "../utils/constants";
 
 interface AuthContextType {
-  // State
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-
-  // Actions
+  role: string | null;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
@@ -34,18 +32,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
-  // Check for existing token on mount
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
-
+    const storedRole = localStorage.getItem("user_role");
     if (token) {
-      try {
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error("Failed to parse stored user data:", error);
-        localStorage.removeItem("auth_token");
-      }
+      setIsAuthenticated(true);
+      setRole(storedRole);
     }
   }, []);
 
@@ -69,29 +63,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(
-            errorData.error || ERROR_MESSAGES.AUTHENTICATION_ERROR
-          );
+          throw new Error(errorData.error || ERROR_MESSAGES.AUTHENTICATION_ERROR);
         }
 
         const result = await response.json();
 
-        // Store in localStorage
-        localStorage.setItem("auth_token", result.token);
+        // Clear ALL previous user state before setting new
+        localStorage.clear();
+        sessionStorage.clear();
 
-        // Update state
+        localStorage.setItem("auth_token", result.token);
+        if (result.role) {
+          localStorage.setItem("user_role", result.role);
+          setRole(result.role);
+        }
+
         setIsAuthenticated(true);
         setIsLoading(false);
         setError(null);
-
         navigate(ROUTES.DASHBOARD);
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : ERROR_MESSAGES.NETWORK_ERROR;
+        const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.NETWORK_ERROR;
         setError(errorMessage);
         setIsLoading(false);
         setIsAuthenticated(false);
-
         throw error;
       }
     },
@@ -109,10 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: data.email,
-              password: data.password,
-            }),
+            body: JSON.stringify({ email: data.email, password: data.password }),
           }
         );
 
@@ -121,21 +113,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error(errorData.error || ERROR_MESSAGES.SERVER_ERROR);
         }
 
-        const result = await response.json();
-
-        if (result.message === "Voter registered successfully") {
-          // After successful registration, redirect to login
-          setIsLoading(false);
-          setError(null);
-          navigate(ROUTES.LOGIN);
-        }
+        setIsLoading(false);
+        setError(null);
+        navigate(ROUTES.LOGIN);
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : ERROR_MESSAGES.SERVER_ERROR;
+        const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.SERVER_ERROR;
         setError(errorMessage);
         setIsLoading(false);
         setIsAuthenticated(false);
-
         throw error;
       }
     },
@@ -143,30 +128,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    // Clear localStorage
-    localStorage.removeItem("auth_token");
+    // Hard clear everything
+    localStorage.clear();
+    sessionStorage.clear();
 
-    // Clear state
-
+    // Reset all state
     setIsAuthenticated(false);
+    setRole(null);
     setError(null);
+    setIsLoading(false);
 
-    console.log("User logged out");
-    navigate(ROUTES.LOGIN);
-  }, [navigate]);
+    // Force full page reload to clear all React state (VotingProvider, etc)
+    window.location.href = ROUTES.LOGIN;
+  }, []);
 
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
   const value: AuthContextType = {
-    // State
-
     isAuthenticated,
     isLoading,
     error,
-
-    // Actions
+    role,
     login,
     register,
     logout,
