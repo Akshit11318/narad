@@ -4,24 +4,36 @@ FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
-    build-essential python3 curl openssl cmake \
+    build-essential python3 curl openssl cmake git \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g cmake-js
 
+# Copy package files (including package-lock.json for npm ci)
 COPY backend/package*.json ./
 COPY backend/prisma ./prisma/
 RUN npm ci
 
-# Build native aggregator addon
-COPY aggregator ./aggregator
-COPY common ./common
+# Copy git files needed for submodule init
+COPY .gitmodules ./
+# Copy deps with submodules — on a fresh clone, submodules need init
+# The .dockerignore excludes .git, so we init submodules from the already-checked-out deps
 COPY deps ./deps
+COPY common ./common
+COPY aggregator ./aggregator
+
+# If deps/libtommath is empty (submodule not initialized), clone it
+RUN if [ ! -d deps/libtommath/.git ]; then \
+      git clone https://github.com/libtom/libtommath.git deps/libtommath; \
+    fi
+
+# Build native aggregator addon (libtommath)
 WORKDIR /app/aggregator
 RUN npm install
 RUN cmake-js compile
 WORKDIR /app
 
+# Build backend
 COPY backend/tsconfig.json ./
 COPY backend/src ./src/
 COPY backend/voting_sys.json ./

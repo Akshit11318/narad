@@ -20,15 +20,23 @@ brew install node@20
 # Install Python 3 (macOS ships with it, but ensure pip)
 brew install python3
 
+# Install git (macOS ships with it, but update)
+brew install git
+
 # Install test dependencies
 pip3 install psycopg2-binary pyjwt bcrypt
 ```
 
-## 2. Clone & Setup
+## 2. Clone with Submodules
 
 ```bash
-git clone https://github.com/Akshit11318/narad.git
+git clone --recursive https://github.com/Akshit11318/narad.git
 cd narad
+
+# If you forgot --recursive, init submodules:
+git submodule update --init --recursive
+
+# Copy environment file
 cp .env.example .env
 ```
 
@@ -123,6 +131,13 @@ Docker isn't in PATH. Add it:
 export PATH="/usr/local/bin:$PATH"
 # Or for Apple Silicon:
 export PATH="/opt/homebrew/bin:$PATH"
+```
+
+### Submodule error during docker build
+The Dockerfile auto-clones libtommath if the submodule is empty. But if you see cmake errors:
+```bash
+git submodule update --init --recursive
+make docker-build
 ```
 
 ### Solana validator not starting
