@@ -56,7 +56,7 @@ help:
 # ========================================
 
 docker:
-	docker compose up -d narad-postgres narad-backend narad-frontend narad-portal
+	docker compose up -d narad-postgres narad-solana narad-backend narad-portal
 
 docker-full:
 	docker compose --profile full up -d
