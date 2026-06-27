@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
+  <rect width="900" height="600" fill="#fafafa" rx="10"/>
+
+  <!-- Setup phase -->
+  <text x="450" y="30" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold" fill="#333">Paillier-Based Aggregation Protocol</text>
+
+  <!-- Phase 1: Setup -->
+  <rect x="50" y="50" width="800" height="80" rx="5" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <text x="70" y="70" font-family="Arial" font-size="12" font-weight="bold" fill="#1565c0">Phase 1: Setup (Trusted Third Party)</text>
+  <text x="70" y="90" font-family="Arial" font-size="11" fill="#333">TP selects safe primes p, q; sets N = pq. Picks H ∈ Z*_{N²}. Publishes (N, H).</text>
+  <text x="70" y="108" font-family="Arial" font-size="11" fill="#333">Aggregator generates sk_A ∈ Z*_{N²}. Each voter chooses sk_i ∈ [0, N²) independently.</text>
+
+  <!-- Phase 2: Encryption -->
+  <rect x="50" y="150" width="380" height="100" rx="5" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <text x="70" y="170" font-family="Arial" font-size="12" font-weight="bold" fill="#2e7d32">Phase 2: Voter Encryption</text>
+  <text x="70" y="190" font-family="Arial" font-size="11" fill="#333">c_i = (1 + x_i · N) · H^{sk_i} mod N²</text>
+  <text x="70" y="208" font-family="Arial" font-size="11" fill="#333">aux_i = pkA^{sk_i} = H^{sk_A · sk_i} mod N²</text>
+  <text x="70" y="226" font-family="Arial" font-size="11" fill="#333">x_i = packed votes (25-bit slots)</text>
+  <text x="70" y="244" font-family="Arial" font-size="10" fill="#666">WASM module (Emscripten + libtommath)</text>
+
+  <!-- Phase 3: Collection -->
+  <rect x="470" y="150" width="380" height="100" rx="5" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <text x="490" y="170" font-family="Arial" font-size="12" font-weight="bold" fill="#e65100">Phase 3: Collector</text>
+  <text x="490" y="190" font-family="Arial" font-size="11" fill="#333">aux = ∏ aux_i mod N²</text>
+  <text x="490" y="208" font-family="Arial" font-size="11" fill="#333">= H^{sk_A · Σ sk_i} mod N²</text>
+  <text x="490" y="226" font-family="Arial" font-size="11" fill="#333">Sends aux to aggregator</text>
+  <text x="490" y="244" font-family="Arial" font-size="10" fill="#666">Backend (Node.js + PostgreSQL)</text>
+
+  <!-- Arrows phase 2 to 3 -->
+  <line x1="430" y1="200" x2="470" y2="200" stroke="#333" stroke-width="2" marker-end="url(#arr2)"/>
+
+  <!-- Phase 4: Aggregation -->
+  <rect x="50" y="280" width="800" height="160" rx="5" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="1"/>
+  <text x="70" y="300" font-family="Arial" font-size="12" font-weight="bold" fill="#6a1b9a">Phase 4: Aggregation (libtommath native C module)</text>
+
+  <text x="70" y="325" font-family="Arial" font-size="11" fill="#333">1. Product:    Π = ∏ c_i mod N² = (1 + (Σx_i)N) · H^{Σsk_i} mod N²</text>
+  <text x="70" y="345" font-family="Arial" font-size="11" fill="#333">2. Exponentiate: P = Π^{sk_A} mod N² = (1 + (Σx_i)N)^{sk_A} · H^{sk_A·Σsk_i} mod N²</text>
+  <text x="70" y="365" font-family="Arial" font-size="11" fill="#333">3. Divide mask: P' = P · aux^{-1} mod N² = (1 + (Σx_i)N)^{sk_A} mod N²</text>
+  <text x="70" y="385" font-family="Arial" font-size="11" fill="#333">4. L function:  L(P') = (P' - 1) / N = sk_A · (Σx_i) mod N</text>
+  <text x="70" y="405" font-family="Arial" font-size="11" fill="#333">5. Recover sum: R = L(P') · sk_A^{-1} mod N = Σ x_i mod N</text>
+  <text x="70" y="425" font-family="Arial" font-size="11" fill="#333">6. Unpack:     Extract 25-bit slots from R → vote counts per candidate</text>
+
+  <!-- Phase 5: Result -->
+  <rect x="50" y="470" width="800" height="60" rx="5" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <text x="70" y="490" font-family="Arial" font-size="12" font-weight="bold" fill="#2e7d32">Phase 5: Result</text>
+  <text x="70" y="510" font-family="Arial" font-size="11" fill="#333">R = Σ x_i = v_1·2^{25(k-1)} + v_2·2^{25(k-2)} + ... + v_k·2^0  →  Vote counts [v_1, v_2, ..., v_k]</text>
+
+  <!-- Arrows -->
+  <line x1="450" y1="250" x2="450" y2="280" stroke="#333" stroke-width="2" marker-end="url(#arr2)"/>
+  <line x1="450" y1="440" x2="450" y2="470" stroke="#333" stroke-width="2" marker-end="url(#arr2)"/>
+
+  <defs>
+    <marker id="arr2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
+    </marker>
+  </defs>
+</svg>
