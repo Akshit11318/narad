@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="500" viewBox="0 0 820 500" font-family="serif">
+  <rect width="820" height="500" fill="white"/>
+  
+  <text x="410" y="25" text-anchor="middle" font-size="14" font-weight="bold">Proposed System Architecture</text>
+  <line x1="200" y1="33" x2="620" y2="33" stroke="black" stroke-width="0.5"/>
+
+  <!-- Voter layer -->
+  <rect x="20" y="50" width="780" height="90" fill="none" stroke="black" stroke-width="0.5" stroke-dasharray="3,2"/>
+  <text x="40" y="68" font-size="10" font-style="italic">Client Side (Browser)</text>
+  
+  <rect x="60" y="75" width="140" height="55" fill="none" stroke="black" stroke-width="1.5"/>
+  <text x="130" y="95" text-anchor="middle" font-size="11" font-weight="bold">Voter U_i</text>
+  <text x="130" y="110" text-anchor="middle" font-size="9">Selects candidate</text>
+  <text x="130" y="122" text-anchor="middle" font-size="9">Generates sk_i</text>
+
+  <rect x="240" y="75" width="160" height="55" fill="none" stroke="black" stroke-width="1.5"/>
+  <text x="320" y="95" text-anchor="middle" font-size="11" font-weight="bold">WASM Module</text>
+  <text x="320" y="110" text-anchor="middle" font-size="9">Paillier Encrypt</text>
+  <text x="320" y="122" text-anchor="middle" font-size="9">Vote Packing (25-bit)</text>
+
+  <rect x="440" y="75" width="160" height="55" fill="none" stroke="black" stroke-width="1.5"/>
+  <text x="520" y="95" text-anchor="middle" font-size="11" font-weight="bold">Portal (Web UI)</text>
+  <text x="520" y="110" text-anchor="middle" font-size="9">React + Auth (JWT)</text>
+  <text x="520" y="122" text-anchor="middle" font-size="9">Results Visualization</text>
+
+  <!-- Arrows in voter layer -->
+  <line x1="200" y1="102" x2="240" y2="102" stroke="black" stroke-width="1"/>
+  <polygon points="236,99 244,102 236,105" fill="black"/>
+  <text x="220" y="96" text-anchor="middle" font-size="8">v_i</text>
+  
+  <line x1="400" y1="102" x2="440" y2="102" stroke="black" stroke-width="1"/>
+  <polygon points="436,99 444,102 436,105" fill="black"/>
+  <text x="420" y="96" text-anchor="middle" font-size="8">c_i, aux_i</text>
+
+  <!-- Arrow down to server -->
+  <line x1="520" y1="130" x2="520" y2="165" stroke="black" stroke-width="1.5"/>
+  <polygon points="516,160 520,168 524,160" fill="black"/>
+  <text x="535" y="150" font-size="9">HTTPS</text>
+
+  <!-- Server layer -->
+  <rect x="20" y="170" width="780" height="200" fill="none" stroke="black" stroke-width="0.5" stroke-dasharray="3,2"/>
+  <text x="40" y="188" font-size="10" font-style="italic">Server Side (Containerized Microservices)</text>
+
+  <rect x="60" y="200" width="160" height="75" fill="none" stroke="black" stroke-width="1.5"/>
+  <text x="140" y="220" text-anchor="middle" font-size="11" font-weight="bold">Backend API</text>
+  <text x="140" y="235" text-anchor="middle" font-size="9">Express (Node.js)</text>
+  <text x="140" y="247" text-anchor="middle" font-size="9">RBAC + JWT Auth</text>
+  <text x="140" y="259" text-anchor="middle" font-size="9">Aggregation Service</text>
+  <text x="140" y="270" text-anchor="middle" font-size="9">Solana Anchor Client</text>
+
+  <rect x="280" y="200" width="140" height="75" fill="none" stroke="black" stroke-width="1.5"/>
+  <text x="350" y="220" text-anchor="middle" font-size="11" font-weight="bold">libtommath</text>
+  <text x="350" y="235" text-anchor="middle" font-size="9">Native C Addon</text>
+  <text x="350" y="247" text-anchor="middle" font-size="9">mp_exptmod</text>
+  <text x="350" y="259" text-anchor="middle" font-size="9">mp_invmod</text>
+  <text x="350" y="270" text-anchor="middle" font-size="9">25-bit unpack</text>
+
+  <rect x="480" y="200" width="140" height="75" fill="none" stroke="black" stroke-width="1.5"/>
+  <text x="550" y="220" text-anchor="middle" font-size="11" font-weight="bold">PostgreSQL</text>
+  <text x="550" y="235" text-anchor="middle" font-size="9">voter_data</text>
+  <text x="550" y="247" text-anchor="middle" font-size="9">system_params</text>
+  <text x="550" y="259" text-anchor="middle" font-size="9">aggregated_results</text>
+  <text x="550" y="270" text-anchor="middle" font-size="9">(N, H, sk_A source)</text>
+
+  <rect x="670" y="200" width="120" height="75" fill="none" stroke="black" stroke-width="1.5"/>
+  <text x="730" y="220" text-anchor="middle" font-size="11" font-weight="bold">Solana</text>
+  <text x="730" y="235" text-anchor="middle" font-size="9">Anchor Program</text>
+  <text x="730" y="247" text-anchor="middle" font-size="9">Election lifecycle</text>
+  <text x="730" y="259" text-anchor="middle" font-size="9">On-chain votes</text>
+  <text x="730" y="270" text-anchor="middle" font-size="9">Immutability</text>
+
+  <!-- Arrows server layer -->
+  <line x1="220" y1="237" x2="280" y2="237" stroke="black" stroke-width="1"/>
+  <polygon points="276,234 284,237 276,240" fill="black"/>
+  <text x="250" y="230" text-anchor="middle" font-size="8">aggregate</text>
+
+  <line x1="420" y1="237" x2="480" y2="237" stroke="black" stroke-width="1"/>
+  <polygon points="476,234 484,237 476,240" fill="black"/>
+  <text x="450" y="230" text-anchor="middle" font-size="8">SQL</text>
+
+  <line x1="620" y1="237" x2="670" y2="237" stroke="black" stroke-width="1"/>
+  <polygon points="666,234 674,237 666,240" fill="black"/>
+  <text x="645" y="230" text-anchor="middle" font-size="8">RPC</text>
+
+  <!-- Key: crypto params flow -->
+  <rect x="60" y="300" width="730" height="55" fill="none" stroke="black" stroke-width="0.5"/>
+  <text x="80" y="318" font-size="10" font-weight="bold">Cryptographic Parameter Flow:</text>
+  <text x="80" y="333" font-size="9">system_params table → (N, H, sk_A) → Aggregation Service (single source of truth, NOT blockchain)</text>
+  <text x="80" y="348" font-size="9">Solana → election metadata (candidates, stage, on-chain vote hash) → Backend → Portal</text>
+
+  <!-- Trust boundaries -->
+  <text x="20" y="410" font-size="10" font-weight="bold">Trust Boundaries:</text>
+  <text x="20" y="425" font-size="9">- TP is trusted only for setup (generates N=pq, knows factorization, then goes offline)</text>
+  <text x="20" y="438" font-size="9">- Aggregator A knows sk_A but cannot learn individual votes (only the sum, under DCR)</text>
+  <text x="20" y="451" font-size="9">- Collector C sees aux_i values but cannot decrypt (random under DCR)</text>
+  <text x="20" y="464" font-size="9">- Voter U_i knows only own sk_i and vote — plaintext never leaves browser</text>
+  <text x="20" y="477" font-size="9">- Solana validators are untrusted (Byzantine fault tolerant consensus)</text>
+</svg>

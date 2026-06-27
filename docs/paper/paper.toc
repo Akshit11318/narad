@@ -1,0 +1,49 @@
+\contentsline {section}{\numberline {1}Introduction}{3}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Problem Statement}{3}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Approach}{3}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Contributions}{3}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Paper Organization}{3}{subsection.1.4}%
+\contentsline {section}{\numberline {2}Proposed Architecture}{4}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Components}{4}{subsection.2.1}%
+\contentsline {subsubsection}{\numberline {2.1.1}Voter Client (Browser + WASM)}{4}{subsubsection.2.1.1}%
+\contentsline {subsubsection}{\numberline {2.1.2}Backend API (Node.js)}{4}{subsubsection.2.1.2}%
+\contentsline {subsubsection}{\numberline {2.1.3}Aggregation Engine (Native C / libtommath)}{5}{subsubsection.2.1.3}%
+\contentsline {subsubsection}{\numberline {2.1.4}Database (PostgreSQL)}{5}{subsubsection.2.1.4}%
+\contentsline {subsubsection}{\numberline {2.1.5}Blockchain (Solana)}{5}{subsubsection.2.1.5}%
+\contentsline {subsection}{\numberline {2.2}Design Rationale}{5}{subsection.2.2}%
+\contentsline {paragraph}{Why WASM for encryption?}{5}{section*.3}%
+\contentsline {paragraph}{Why a native addon for aggregation?}{5}{section*.4}%
+\contentsline {paragraph}{Why separate crypto params from blockchain?}{5}{section*.5}%
+\contentsline {paragraph}{Why microservices?}{5}{section*.6}%
+\contentsline {section}{\numberline {3}Cryptographic Protocol}{5}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Assumptions}{6}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Setup Phase}{6}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Encryption Phase}{6}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Collection Phase}{6}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Aggregation Phase}{7}{subsection.3.5}%
+\contentsline {section}{\numberline {4}Correctness Proofs}{7}{section.4}%
+\contentsline {section}{\numberline {5}Security Analysis}{8}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Cryptographic Assumption}{8}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Privacy Analysis}{9}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Integrity Properties}{9}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Limitations}{9}{subsection.5.4}%
+\contentsline {section}{\numberline {6}Vote Packing}{10}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Capacity Analysis}{10}{subsection.6.1}%
+\contentsline {section}{\numberline {7}Algorithms}{10}{section.7}%
+\contentsline {section}{\numberline {8}Evaluation}{10}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Test Methodology}{10}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Correctness Results}{10}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Performance Characteristics}{11}{subsection.8.3}%
+\contentsline {paragraph}{Encryption throughput.}{11}{section*.11}%
+\contentsline {paragraph}{Aggregation latency.}{11}{section*.12}%
+\contentsline {paragraph}{Capacity.}{11}{section*.13}%
+\contentsline {section}{\numberline {9}Proof-of-Concept Implementation}{11}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Technology Stack}{11}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}Engineering Challenges Resolved}{12}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}Docker Deployment}{13}{subsection.9.3}%
+\contentsline {section}{\numberline {10}Related Work}{13}{section.10}%
+\contentsline {paragraph}{Helios\nobreakspace {}\cite {adida2008helios}}{13}{section*.14}%
+\contentsline {paragraph}{Civitas\nobreakspace {}\cite {kiayias2008civitas}}{13}{section*.15}%
+\contentsline {paragraph}{Aggregator-oblivious encryption\nobreakspace {}\cite {lem14b}}{13}{section*.16}%
+\contentsline {paragraph}{Privacy-preserving aggregation\nobreakspace {}\cite {popets2023}}{13}{section*.17}%
+\contentsline {section}{\numberline {11}Conclusion}{13}{section.11}%

@@ -1,48 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="250" viewBox="0 0 800 250">
-  <rect width="800" height="250" fill="#fafafa" rx="10"/>
-  <text x="400" y="25" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#333">25-bit Vote Packing (10 candidates, reverse order)</text>
-  <rect x="20" y="50" width="70" height="40" fill="#ffc107" rx="3"/>
-  <text x="55" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 1</text>
-  <text x="55" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 225-249</text>
-  <text x="55" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^225</text>
-  <rect x="96" y="50" width="70" height="40" fill="#8bc34a" rx="3"/>
-  <text x="131" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 2</text>
-  <text x="131" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 200-224</text>
-  <text x="131" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^200</text>
-  <rect x="172" y="50" width="70" height="40" fill="#ff5722" rx="3"/>
-  <text x="207" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 3</text>
-  <text x="207" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 175-199</text>
-  <text x="207" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^175</text>
-  <rect x="248" y="50" width="70" height="40" fill="#7b68ee" rx="3"/>
-  <text x="283" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 4</text>
-  <text x="283" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 150-174</text>
-  <text x="283" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^150</text>
-  <rect x="324" y="50" width="70" height="40" fill="#00bcd4" rx="3"/>
-  <text x="359" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 5</text>
-  <text x="359" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 125-149</text>
-  <text x="359" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^125</text>
-  <rect x="400" y="50" width="70" height="40" fill="#e91e63" rx="3"/>
-  <text x="435" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 6</text>
-  <text x="435" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 100-124</text>
-  <text x="435" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^100</text>
-  <rect x="476" y="50" width="70" height="40" fill="#9945ff" rx="3"/>
-  <text x="511" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 7</text>
-  <text x="511" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 75-99</text>
-  <text x="511" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^75</text>
-  <rect x="552" y="50" width="70" height="40" fill="#ff8c00" rx="3"/>
-  <text x="587" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 8</text>
-  <text x="587" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 50-74</text>
-  <text x="587" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^50</text>
-  <rect x="628" y="50" width="70" height="40" fill="#50c878" rx="3"/>
-  <text x="663" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 9</text>
-  <text x="663" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 25-49</text>
-  <text x="663" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^25</text>
-  <rect x="704" y="50" width="70" height="40" fill="#4a90d9" rx="3"/>
-  <text x="739" y="75" text-anchor="middle" fill="white" font-family="Arial" font-size="10" font-weight="bold">Cand 10</text>
-  <text x="739" y="105" text-anchor="middle" fill="#333" font-family="Arial" font-size="9">bits 0-24</text>
-  <text x="739" y="120" text-anchor="middle" fill="#666" font-family="Arial" font-size="9">v*2^0</text>
-  <rect x="20" y="150" width="770" height="40" rx="5" fill="#333"/>
-  <text x="400" y="175" text-anchor="middle" fill="white" font-family="Arial" font-size="13" font-weight="bold">m = v1*2^225 + v2*2^200 + ... + v10*2^0</text>
-  <text x="400" y="215" text-anchor="middle" font-family="Arial" font-size="11" fill="#666">Total: 10 x 25 = 250 bits &lt; N (255 bits)</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="180" viewBox="0 0 800 180" font-family="serif">
+  <rect width="800" height="180" fill="white"/>
+  <text x="400" y="20" text-anchor="middle" font-size="12" font-weight="bold">25-bit Vote Packing: k=10 candidates, N=255 bits</text>
+
+  <!-- Slots - B/W with hatching -->
+  <defs>
+    <pattern id="hatch1" patternUnits="userSpaceOnUse" width="4" height="4">
+      <line x1="0" y1="0" x2="0" y2="4" stroke="black" stroke-width="0.5"/>
+    </pattern>
+    <pattern id="hatch2" patternUnits="userSpaceOnUse" width="4" height="4">
+      <line x1="0" y1="0" x2="4" y2="4" stroke="black" stroke-width="0.5"/>
+    </pattern>
+    <pattern id="hatch3" patternUnits="userSpaceOnUse" width="4" height="4">
+      <line x1="0" y1="0" x2="4" y2="0" stroke="black" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+
+  <!-- 10 slots, 25 bits each -->
+  <rect x="20" y="35" width="70" height="35" fill="url(#hatch1)" stroke="black"/>
+  <text x="55" y="55" text-anchor="middle" font-size="9">Cand 1</text>
+  <text x="55" y="67" text-anchor="middle" font-size="8">bits 225-249</text>
+
+  <rect x="95" y="35" width="70" height="35" fill="url(#hatch2)" stroke="black"/>
+  <text x="130" y="55" text-anchor="middle" font-size="9">Cand 2</text>
+  <text x="130" y="67" text-anchor="middle" font-size="8">bits 200-224</text>
+
+  <rect x="170" y="35" width="70" height="35" fill="url(#hatch3)" stroke="black"/>
+  <text x="205" y="55" text-anchor="middle" font-size="9">Cand 3</text>
+  <text x="205" y="67" text-anchor="middle" font-size="8">bits 175-199</text>
+
+  <rect x="245" y="35" width="70" height="35" fill="url(#hatch1)" stroke="black"/>
+  <text x="280" y="55" text-anchor="middle" font-size="9">Cand 4</text>
+  <text x="280" y="67" text-anchor="middle" font-size="8">bits 150-174</text>
+
+  <rect x="320" y="35" width="70" height="35" fill="url(#hatch2)" stroke="black"/>
+  <text x="355" y="55" text-anchor="middle" font-size="9">Cand 5</text>
+  <text x="355" y="67" text-anchor="middle" font-size="8">bits 125-149</text>
+
+  <rect x="395" y="35" width="70" height="35" fill="url(#hatch3)" stroke="black"/>
+  <text x="430" y="55" text-anchor="middle" font-size="9">Cand 6</text>
+  <text x="430" y="67" text-anchor="middle" font-size="8">bits 100-124</text>
+
+  <rect x="470" y="35" width="70" height="35" fill="url(#hatch1)" stroke="black"/>
+  <text x="505" y="55" text-anchor="middle" font-size="9">Cand 7</text>
+  <text x="505" y="67" text-anchor="middle" font-size="8">bits 75-99</text>
+
+  <rect x="545" y="35" width="70" height="35" fill="url(#hatch2)" stroke="black"/>
+  <text x="580" y="55" text-anchor="middle" font-size="9">Cand 8</text>
+  <text x="580" y="67" text-anchor="middle" font-size="8">bits 50-74</text>
+
+  <rect x="620" y="35" width="70" height="35" fill="url(#hatch3)" stroke="black"/>
+  <text x="655" y="55" text-anchor="middle" font-size="9">Cand 9</text>
+  <text x="655" y="67" text-anchor="middle" font-size="8">bits 25-49</text>
+
+  <rect x="695" y="35" width="70" height="35" fill="url(#hatch1)" stroke="black"/>
+  <text x="730" y="55" text-anchor="middle" font-size="9">Cand 10</text>
+  <text x="730" y="67" text-anchor="middle" font-size="8">bits 0-24</text>
+
+  <!-- Packed integer -->
+  <rect x="20" y="85" width="745" height="30" fill="none" stroke="black" stroke-width="1.5"/>
+  <text x="400" y="105" text-anchor="middle" font-size="11">m = v_1 · 2^225 + v_2 · 2^200 + ... + v_10 · 2^0</text>
+
+  <!-- Constraint -->
+  <text x="20" y="135" font-size="10" font-weight="bold">Constraint:</text>
+  <text x="110" y="135" font-size="10">k × b = 10 × 25 = 250 bits &lt; log2(N) = 255 bits</text>
+  <text x="20" y="150" font-size="10" font-weight="bold">Max per slot:</text>
+  <text x="130" y="150" font-size="10">2^25 - 1 = 33,554,431 votes</text>
+  <text x="20" y="165" font-size="10" font-weight="bold">Homomorphism:</text>
+  <text x="140" y="165" font-size="10">Sum preserves slots independently: Σ m_i = Σ_j (Σ_i v_{i,j}) · 2^{25(k-j)}</text>
 </svg>
