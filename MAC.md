@@ -164,6 +164,75 @@ docker logs narad-backend
 # Usually waiting for postgres or solana
 ```
 
+### "cargo build-sbf" segfaults / SIGSEGV on Apple Silicon (M1/M2/M3)
+The `tchambard/solana-test-validator` image is x86_64-only. On Apple Silicon Macs, Docker uses QEMU emulation by default, which crashes the Rust compiler (`rustc` segfaults with `signal: 11, SIGSEGV`).
+
+**Fix: Enable Rosetta 2 for x86_64 emulation in Docker Desktop**
+
+1. Open Docker Desktop → Settings → General
+2. Check **"Use Rosetta for x86_64/amd64 emulation on Apple Silicon"**
+3. Click **Apply & restart**
+
+Or via CLI:
+```bash
+# Quit Docker
+osascript -e 'quit app "Docker"'
+
+# Enable Rosetta in settings
+python3 -c "
+import json, os
+p = os.path.expanduser('~/Library/Group Containers/group.com.docker/settings-store.json')
+d = json.load(open(p))
+d['UseVirtualizationFrameworkRosetta'] = True
+json.dump(d, open(p, 'w'), indent=2)
+"
+
+# Restart Docker
+open -a Docker
+# Wait ~30s, then verify:
+docker info | grep -i rosetta
+```
+
+Then rebuild and deploy the Solana program:
+```bash
+make solana-build
+make solana-deploy
+```
+
+### "Election creation failed: Attempt to load a program that does not exist"
+The Solana program (`voting_sys`) is not deployed to the local validator. Build and deploy it:
+```bash
+make solana-build
+make solana-deploy
+```
+Verify deployment:
+```bash
+docker exec narad-solana solana program show RhzKgCXcLLN1pJKLHK2MDbP6n8ijLW5pNWTDpfvsDKM --url http://localhost:8899
+```
+
+### "Port 5432 already allocated"
+Another container or service is using port 5432. Find and stop it:
+```bash
+docker ps -a --format 'table {{.Names}}\t{{.Ports}}' | grep 5432
+docker stop <container-name>
+```
+Then recreate narad-postgres:
+```bash
+docker compose up -d narad-postgres --force-recreate
+```
+
+### "Environment variable not found: DATABASE_URL"
+The `.env` file is at the repo root but Prisma runs from `backend/`. Create a symlink:
+```bash
+cd backend && ln -s ../.env .env
+```
+
+### "npm ci can only install with an existing package-lock.json"
+Generate the lockfile in `backend/`:
+```bash
+cd backend && npm install --package-lock-only
+```
+
 ## 9. Rebuild After Code Changes
 
 ```bash
