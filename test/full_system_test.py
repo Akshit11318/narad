@@ -3,7 +3,7 @@
 NARAD Voting System — Full End-to-End Stress Test
 Optimized for 30M voters across 16 cores
 """
-import json, urllib.request, random, time, sys, os, io, multiprocessing, hashlib
+import json, urllib.request, urllib.error, random, time, sys, os, io, multiprocessing, hashlib, socket, http.client as http_client
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 
@@ -22,6 +22,10 @@ BATCH_SIZE    = int(os.environ.get("BATCH_SIZE", "50000"))
 NUM_WORKERS   = int(os.environ.get("NUM_WORKERS", str(multiprocessing.cpu_count())))
 RESULTS_FILE  = os.path.join(os.getcwd(), f"test_results_{NUM_VOTERS}v_{NUM_CANDIDATES}c.json")
 MD_FILE       = os.path.join(os.getcwd(), f"test_report_{NUM_VOTERS}v_{NUM_CANDIDATES}c.md")
+STATE_FILE    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_state.json")
+RESUME        = os.environ.get("RESUME", "0") == "1"
+RESUME_ELECTION_ID = os.environ.get("ELECTION_ID", "")
+AGG_TIMEOUT   = int(os.environ.get("AGG_TIMEOUT", "7200"))  # 2h default for aggregation calls
 
 # ╔══════════════════════════════════════════════════════════════╗
 # ║                         UTILITIES                              ║
@@ -70,16 +74,24 @@ def fmt_time(s):
     h, m = divmod(m, 60)
     return f"{h}h{m}m{s}s"
 
-def fetch(url, method="GET", data=None, token=None):
+def fetch(url, method="GET", data=None, token=None, timeout=None, retries=3):
     headers = {"Content-Type": "application/json"}
     if token: headers["Authorization"] = f"Bearer {token}"
     body = json.dumps(data).encode() if data else None
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
-    try:
-        resp = urllib.request.urlopen(req)
-        return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        return json.loads(e.read())
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            resp = urllib.request.urlopen(req, timeout=timeout) if timeout else urllib.request.urlopen(req)
+            return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            return json.loads(e.read())
+        except (urllib.error.URLError, ConnectionResetError, TimeoutError, http_client.RemoteDisconnected) as e:
+            last_exc = e
+            log_warn(f"fetch attempt {attempt}/{retries} failed: {e}")
+            if attempt < retries:
+                time.sleep(5 * attempt)
+    raise last_exc
 
 def get_db_conn():
     import psycopg2
@@ -95,6 +107,52 @@ def pack_votes(votes, num_candidates):
         bit_pos = (num_candidates - 1 - i) * BITS
         packed |= (votes[i] << bit_pos)
     return packed
+
+def save_state(election_id, expected_counts, num_voters, num_candidates):
+    state = {
+        "election_id": election_id,
+        "expected_counts": expected_counts,
+        "num_voters": num_voters,
+        "num_candidates": num_candidates,
+        "saved_at": datetime.now().isoformat(),
+    }
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f, indent=2)
+    log_ok(f"State saved to {Colors.YELLOW}{STATE_FILE}{Colors.RESET}")
+
+def load_state():
+    if not os.path.exists(STATE_FILE):
+        return None
+    with open(STATE_FILE, "r") as f:
+        return json.load(f)
+
+def recover_from_db():
+    """Recover election_id, voter count, and candidate count from DB."""
+    conn = get_db_conn(); cur = conn.cursor()
+    cur.execute("SELECT \"electionId\", COUNT(*) FROM voter_data WHERE role='voter' GROUP BY \"electionId\" ORDER BY MAX(id) DESC LIMIT 1;")
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        return None, 0, 0
+    election_id, voter_count = row
+    # Infer candidate count from the election with the most candidates on chain,
+    # or fall back to NUM_CANDIDATES env
+    cur.close(); conn.close()
+    return election_id, voter_count, NUM_CANDIDATES
+
+def recompute_expected_counts(num_voters, num_candidates, batch_size=50000, seed=42):
+    log_info("Recomputing expected counts from deterministic seed (no encryption)...")
+    expected = [0] * num_candidates
+    num_batches = (num_voters + batch_size - 1) // batch_size
+    for b in range(num_batches):
+        start = b * batch_size
+        count = min(batch_size, num_voters - start)
+        rng = random.Random(seed + start)
+        for _ in range(count):
+            chosen = rng.randint(0, num_candidates - 1)
+            expected[chosen] += 1
+    log_ok(f"Expected counts recomputed: {expected}")
+    return expected
 
 # ╔══════════════════════════════════════════════════════════════╗
 # ║                   PARALLEL ENCRYPTION WORKER                   ║
@@ -157,148 +215,204 @@ def main():
     banner("N A R A D   V O T I N G   S Y S T E M", Colors.PURPLE)
     print(f"{Colors.DIM}  Paillier Homomorphic Encryption · libtommath · Solana Blockchain{Colors.RESET}\n")
 
-    log_info(f"Scale: {Colors.WHITE}{fmt_num(NUM_VOTERS)} voters{Colors.RESET} · {Colors.WHITE}{NUM_CANDIDATES} candidates{Colors.RESET}")
-    log_info(f"CPU: {Colors.WHITE}{NUM_WORKERS} cores{Colors.RESET} · Batch: {Colors.WHITE}{fmt_num(BATCH_SIZE)}{Colors.RESET} · DB: {Colors.WHITE}{DB_HOST}:{DB_PORT}{Colors.RESET}")
-    print()
-
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # STEP 0: Database reset
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log_step(0, "Database Reset")
-    conn = get_db_conn(); conn.autocommit = True; cur = conn.cursor()
-    cur.execute("TRUNCATE TABLE voter_data, aggregated_results CASCADE;")
-    cur.close(); conn.close()
-    t_reset = time.time() - t_start
-    log_ok("Tables truncated")
-
-    # Bootstrap admin
-    admin = fetch(f"{BASE}/voter/login", "POST", {"email": "admin@narad.io", "password": "narad123"})
-    if "token" not in admin:
-        conn = get_db_conn(); conn.autocommit = True; cur = conn.cursor()
-        cur.execute("INSERT INTO voter_data (\"voterId\", email, \"electionId\", role, ci, auxi, password, \"createdAt\", \"updatedAt\") VALUES ('admin', 'admin@narad.io', 'bootstrap', 'admin', '', '', NULL, NOW(), NOW()) ON CONFLICT (email) DO NOTHING;")
-        cur.close(); conn.close()
-        fetch(f"{BASE}/voter/register", "POST", {"email": "admin@narad.io", "password": "narad123"})
-        conn = get_db_conn(); conn.autocommit = True; cur = conn.cursor()
-        cur.execute("UPDATE voter_data SET role='admin' WHERE email='admin@narad.io';")
-        cur.close(); conn.close()
-        admin = fetch(f"{BASE}/voter/login", "POST", {"email": "admin@narad.io", "password": "narad123"})
-    admin_token = admin["token"]
-    log_ok(f"Admin authenticated (role={admin['role']})")
-
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # STEP 1: Verify crypto params
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log_step(1, "Crypto Parameter Verification")
-    params = fetch(f"{BASE}/aggregator/params")
-    Nhex, Hhex, skAhex = params["N"], params["H"], params["skA"]
-    t_params_start = time.time()
-    N = int(Nhex, 16)
-
-    checks = [
-        ("N is odd (Paillier requirement)",     N % 2 == 1),
-        ("skA ≠ H (non-degenerate key)",        skAhex != Hhex),
-        ("N bit length ≥ 250",                  N.bit_length() >= 250),
-        ("skA coprime to N",                    True),  # Verified by successful inv
-    ]
-    all_pass = True
-    for name, ok in checks:
-        if ok:
-            log_ok(name)
-        else:
-            log_err(name)
-            all_pass = False
-    if not all_pass:
-        log_err("Crypto params invalid, aborting.")
-        sys.exit(1)
-
-    # Capacity check
-    max_voters_per_candidate = (1 << 25) - 1
-    max_total_voters = max_voters_per_candidate * NUM_CANDIDATES
-    if NUM_VOTERS > max_total_voters:
-        log_warn(f"⚠ {fmt_num(NUM_VOTERS)} exceeds max capacity {fmt_num(max_total_voters)} ({NUM_CANDIDATES}×{max_voters_per_candidate})")
-    else:
-        log_ok(f"Capacity: {fmt_num(NUM_VOTERS)} / {fmt_num(max_total_voters)} ({NUM_VOTERS/max_total_voters*100:.1f}%)")
-
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # STEP 2: Create election on blockchain
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    t_election_start = time.time()
-    log_step(2, "Blockchain Election Creation")
-    election = fetch(f"{BASE}/blockchain/create-election", "POST", {
-        "totalVotes": min(NUM_VOTERS, 1000000),
-        "totalCandidates": NUM_CANDIDATES
-    }, admin_token)
-    if "data" not in election:
-        log_err(f"Election creation failed: {election}")
-        sys.exit(1)
-    ELECTION_ID = election["data"]["electionId"]
-    log_ok(f"Election ID: {Colors.YELLOW}{ELECTION_ID}{Colors.RESET}")
-
+    # Defaults for reporting (overwritten in non-resume mode)
+    enc_time = 0; db_bytes = 0; t_reset = 0; t_election = 0; t_params_start = time.time()
     candidate_names = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Grace", "Heidi", "Ivan", "Judy"]
-    for name in candidate_names[:NUM_CANDIDATES]:
-        fetch(f"{BASE}/blockchain/elections/{ELECTION_ID}/candidates", "POST", {"candidateName": name}, admin_token)
-    log_ok(f"{NUM_CANDIDATES} candidates added: {', '.join(candidate_names[:NUM_CANDIDATES])}")
 
-    fetch(f"{BASE}/blockchain/elections/{ELECTION_ID}/change-stage", "POST", {"stage": "voting"}, admin_token)
-    t_election = time.time() - t_election_start
-    log_ok("Stage → voting")
+    if RESUME:
+        banner("RESUME MODE — Skipping to Aggregation (Step 4)", Colors.YELLOW)
+        state = load_state()
+        global NUM_VOTERS, NUM_CANDIDATES, RESULTS_FILE, MD_FILE
+        if state:
+            ELECTION_ID = state["election_id"]
+            total_expected = state["expected_counts"]
+            NUM_VOTERS = state["num_voters"]
+            NUM_CANDIDATES = state["num_candidates"]
+            RESULTS_FILE = os.path.join(os.getcwd(), f"test_results_{NUM_VOTERS}v_{NUM_CANDIDATES}c.json")
+            MD_FILE = os.path.join(os.getcwd(), f"test_report_{NUM_VOTERS}v_{NUM_CANDIDATES}c.md")
+            log_ok(f"State loaded from {Colors.YELLOW}{STATE_FILE}{Colors.RESET}")
+            log_info(f"Election ID: {Colors.YELLOW}{ELECTION_ID}{Colors.RESET}")
+        else:
+            if RESUME_ELECTION_ID:
+                ELECTION_ID = RESUME_ELECTION_ID
+                conn = get_db_conn(); cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM voter_data WHERE \"electionId\"=%s AND role='voter';", (ELECTION_ID,))
+                NUM_VOTERS = cur.fetchone()[0]
+                cur.close(); conn.close()
+            else:
+                ELECTION_ID, NUM_VOTERS, NUM_CANDIDATES = recover_from_db()
+            if not ELECTION_ID:
+                log_err("No ELECTION_ID found. Set ELECTION_ID env var or run without RESUME=1.")
+                sys.exit(1)
+            RESULTS_FILE = os.path.join(os.getcwd(), f"test_results_{NUM_VOTERS}v_{NUM_CANDIDATES}c.json")
+            MD_FILE = os.path.join(os.getcwd(), f"test_report_{NUM_VOTERS}v_{NUM_CANDIDATES}c.md")
+            log_info(f"Voters in DB: {Colors.WHITE}{fmt_num(NUM_VOTERS)}{Colors.RESET}")
+            total_expected = recompute_expected_counts(NUM_VOTERS, NUM_CANDIDATES)
+            log_ok(f"Recovered election ID from DB: {Colors.YELLOW}{ELECTION_ID}{Colors.RESET}")
 
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # STEP 3: Parallel encryption + bulk DB insert
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log_step(3, f"Parallel Encryption + Bulk Insert ({NUM_WORKERS} cores)")
+        log_info(f"Scale: {Colors.WHITE}{fmt_num(NUM_VOTERS)} voters{Colors.RESET} · {Colors.WHITE}{NUM_CANDIDATES} candidates{Colors.RESET}")
+        print()
 
-    num_batches = (NUM_VOTERS + BATCH_SIZE - 1) // BATCH_SIZE
-    batch_args = []
-    for b in range(num_batches):
-        start = b * BATCH_SIZE
-        count = min(BATCH_SIZE, NUM_VOTERS - start)
-        batch_args.append((b, start, count, Nhex, Hhex, skAhex, NUM_CANDIDATES, 42, ELECTION_ID))
+        # Admin token (needed for aggregation endpoints)
+        admin = fetch(f"{BASE}/voter/login", "POST", {"email": "admin@narad.io", "password": "narad123"})
+        if "token" not in admin:
+            log_err("Admin login failed. Make sure backend is running.")
+            sys.exit(1)
+        admin_token = admin["token"]
+        log_ok("Admin authenticated")
 
-    log_info(f"Dispatching {num_batches} batches × {fmt_num(BATCH_SIZE)} voters = {fmt_num(NUM_VOTERS)} total")
-    print()
+        # Crypto params (needed for reporting)
+        params = fetch(f"{BASE}/aggregator/params")
+        Nhex, Hhex, skAhex = params["N"], params["H"], params["skA"]
+        N = int(Nhex, 16)
+        log_ok(f"Crypto params loaded (N={N.bit_length()}bit)")
 
-    t_enc = time.time()
-    total_expected = [0] * NUM_CANDIDATES
-    total_inserted = 0
-    db_bytes = 0
+    else:
+        log_info(f"Scale: {Colors.WHITE}{fmt_num(NUM_VOTERS)} voters{Colors.RESET} · {Colors.WHITE}{NUM_CANDIDATES} candidates{Colors.RESET}")
+        log_info(f"CPU: {Colors.WHITE}{NUM_WORKERS} cores{Colors.RESET} · Batch: {Colors.WHITE}{fmt_num(BATCH_SIZE)}{Colors.RESET} · DB: {Colors.WHITE}{DB_HOST}:{DB_PORT}{Colors.RESET}")
+        print()
 
-    conn = get_db_conn(); conn.autocommit = True; cur = conn.cursor()
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # STEP 0: Database reset
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        log_step(0, "Database Reset")
+        conn = get_db_conn(); conn.autocommit = True; cur = conn.cursor()
+        cur.execute("TRUNCATE TABLE voter_data, aggregated_results CASCADE;")
+        cur.close(); conn.close()
+        t_reset = time.time() - t_start
+        log_ok("Tables truncated")
 
-    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        futures = {executor.submit(encrypt_batch, args): args[0] for args in batch_args}
+        # Bootstrap admin
+        admin = fetch(f"{BASE}/voter/login", "POST", {"email": "admin@narad.io", "password": "narad123"})
+        if "token" not in admin:
+            conn = get_db_conn(); conn.autocommit = True; cur = conn.cursor()
+            cur.execute("INSERT INTO voter_data (\"voterId\", email, \"electionId\", role, ci, auxi, password, \"createdAt\", \"updatedAt\") VALUES ('admin', 'admin@narad.io', 'bootstrap', 'admin', '', '', NULL, NOW(), NOW()) ON CONFLICT (email) DO NOTHING;")
+            cur.close(); conn.close()
+            fetch(f"{BASE}/voter/register", "POST", {"email": "admin@narad.io", "password": "narad123"})
+            conn = get_db_conn(); conn.autocommit = True; cur = conn.cursor()
+            cur.execute("UPDATE voter_data SET role='admin' WHERE email='admin@narad.io';")
+            cur.close(); conn.close()
+            admin = fetch(f"{BASE}/voter/login", "POST", {"email": "admin@narad.io", "password": "narad123"})
+        admin_token = admin["token"]
+        log_ok(f"Admin authenticated (role={admin['role']})")
 
-        completed = 0
-        for future in as_completed(futures):
-            batch_idx, rows, expected = future.result()
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # STEP 1: Verify crypto params
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        log_step(1, "Crypto Parameter Verification")
+        params = fetch(f"{BASE}/aggregator/params")
+        Nhex, Hhex, skAhex = params["N"], params["H"], params["skA"]
+        t_params_start = time.time()
+        N = int(Nhex, 16)
 
-            for i in range(NUM_CANDIDATES):
-                total_expected[i] += expected[i]
+        checks = [
+            ("N is odd (Paillier requirement)",     N % 2 == 1),
+            ("skA ≠ H (non-degenerate key)",        skAhex != Hhex),
+            ("N bit length ≥ 250",                  N.bit_length() >= 250),
+            ("skA coprime to N",                    True),  # Verified by successful inv
+        ]
+        all_pass = True
+        for name, ok in checks:
+            if ok:
+                log_ok(name)
+            else:
+                log_err(name)
+                all_pass = False
+        if not all_pass:
+            log_err("Crypto params invalid, aborting.")
+            sys.exit(1)
 
-            data = "".join(rows)
-            db_bytes += len(data)
+        # Capacity check
+        max_voters_per_candidate = (1 << 25) - 1
+        max_total_voters = max_voters_per_candidate * NUM_CANDIDATES
+        if NUM_VOTERS > max_total_voters:
+            log_warn(f"⚠ {fmt_num(NUM_VOTERS)} exceeds max capacity {fmt_num(max_total_voters)} ({NUM_CANDIDATES}×{max_voters_per_candidate})")
+        else:
+            log_ok(f"Capacity: {fmt_num(NUM_VOTERS)} / {fmt_num(max_total_voters)} ({NUM_VOTERS/max_total_voters*100:.1f}%)")
 
-            cur.copy_expert(
-                'COPY voter_data ("voterId", email, "electionId", role, ci, auxi, password, "createdAt", "updatedAt") FROM STDIN WITH (FORMAT csv, DELIMITER E\'\\t\')',
-                io.StringIO(data)
-            )
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # STEP 2: Create election on blockchain
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        t_election_start = time.time()
+        log_step(2, "Blockchain Election Creation")
+        election = fetch(f"{BASE}/blockchain/create-election", "POST", {
+            "totalVotes": min(NUM_VOTERS, 1000000),
+            "totalCandidates": NUM_CANDIDATES
+        }, admin_token)
+        if "data" not in election:
+            log_err(f"Election creation failed: {election}")
+            sys.exit(1)
+        ELECTION_ID = election["data"]["electionId"]
+        log_ok(f"Election ID: {Colors.YELLOW}{ELECTION_ID}{Colors.RESET}")
 
-            total_inserted += len(rows)
-            completed += 1
+        candidate_names = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Grace", "Heidi", "Ivan", "Judy"]
+        for name in candidate_names[:NUM_CANDIDATES]:
+            fetch(f"{BASE}/blockchain/elections/{ELECTION_ID}/candidates", "POST", {"candidateName": name}, admin_token)
+        log_ok(f"{NUM_CANDIDATES} candidates added: {', '.join(candidate_names[:NUM_CANDIDATES])}")
 
-            elapsed = time.time() - t_enc
-            rate = total_inserted / elapsed if elapsed > 0 else 0
-            eta = (NUM_VOTERS - total_inserted) / rate if rate > 0 else 0
-            progress_bar(total_inserted, NUM_VOTERS,
-                         extra=f"{Colors.GREEN}{fmt_num(rate)}/s{Colors.RESET} ETA {fmt_time(eta)}")
+        fetch(f"{BASE}/blockchain/elections/{ELECTION_ID}/change-stage", "POST", {"stage": "voting"}, admin_token)
+        t_election = time.time() - t_election_start
+        log_ok("Stage → voting")
 
-    cur.close(); conn.close()
-    enc_time = time.time() - t_enc
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # STEP 3: Parallel encryption + bulk DB insert
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        log_step(3, f"Parallel Encryption + Bulk Insert ({NUM_WORKERS} cores)")
 
-    print()
-    log_ok(f"Encryption + Insert complete: {Colors.WHITE}{fmt_time(enc_time)}{Colors.RESET} ({fmt_num(NUM_VOTERS/enc_time)}/s)")
-    log_ok(f"Database written: {Colors.WHITE}{fmt_bytes(db_bytes)}{Colors.RESET}")
-    log_ok(f"Expected counts: {Colors.WHITE}{total_expected}{Colors.RESET}")
+        num_batches = (NUM_VOTERS + BATCH_SIZE - 1) // BATCH_SIZE
+        batch_args = []
+        for b in range(num_batches):
+            start = b * BATCH_SIZE
+            count = min(BATCH_SIZE, NUM_VOTERS - start)
+            batch_args.append((b, start, count, Nhex, Hhex, skAhex, NUM_CANDIDATES, 42, ELECTION_ID))
+
+        log_info(f"Dispatching {num_batches} batches × {fmt_num(BATCH_SIZE)} voters = {fmt_num(NUM_VOTERS)} total")
+        print()
+
+        t_enc = time.time()
+        total_expected = [0] * NUM_CANDIDATES
+        total_inserted = 0
+        db_bytes = 0
+
+        conn = get_db_conn(); conn.autocommit = True; cur = conn.cursor()
+
+        with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+            futures = {executor.submit(encrypt_batch, args): args[0] for args in batch_args}
+
+            completed = 0
+            for future in as_completed(futures):
+                batch_idx, rows, expected = future.result()
+
+                for i in range(NUM_CANDIDATES):
+                    total_expected[i] += expected[i]
+
+                data = "".join(rows)
+                db_bytes += len(data)
+
+                cur.copy_expert(
+                    'COPY voter_data ("voterId", email, "electionId", role, ci, auxi, password, "createdAt", "updatedAt") FROM STDIN WITH (FORMAT csv, DELIMITER E\'\\t\')',
+                    io.StringIO(data)
+                )
+
+                total_inserted += len(rows)
+                completed += 1
+
+                elapsed = time.time() - t_enc
+                rate = total_inserted / elapsed if elapsed > 0 else 0
+                eta = (NUM_VOTERS - total_inserted) / rate if rate > 0 else 0
+                progress_bar(total_inserted, NUM_VOTERS,
+                             extra=f"{Colors.GREEN}{fmt_num(rate)}/s{Colors.RESET} ETA {fmt_time(eta)}")
+
+        cur.close(); conn.close()
+        enc_time = time.time() - t_enc
+
+        print()
+        log_ok(f"Encryption + Insert complete: {Colors.WHITE}{fmt_time(enc_time)}{Colors.RESET} ({fmt_num(NUM_VOTERS/enc_time)}/s)")
+        log_ok(f"Database written: {Colors.WHITE}{fmt_bytes(db_bytes)}{Colors.RESET}")
+        log_ok(f"Expected counts: {Colors.WHITE}{total_expected}{Colors.RESET}")
+
+        # Save state for potential resume
+        save_state(ELECTION_ID, total_expected, NUM_VOTERS, NUM_CANDIDATES)
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # STEP 4: Paillier Homomorphic Aggregation
@@ -307,13 +421,15 @@ def main():
 
     log_info("Computing auxiliary product (collector step)...")
     aux_time = time.time()
-    fetch(f"{BASE}/aggregator/compute-aux/{ELECTION_ID}", "POST", token=admin_token)
+    fetch(f"{BASE}/aggregator/compute-aux/{ELECTION_ID}", "POST", token=admin_token,
+          timeout=AGG_TIMEOUT, retries=5)
     aux_time = time.time() - aux_time
     log_ok(f"Aux product computed ({fmt_time(aux_time)})")
 
     log_info("Aggregating votes (decrypting with libtommath)...")
     t_agg = time.time()
-    agg_result = fetch(f"{BASE}/aggregator/aggregate/{ELECTION_ID}", "POST", token=admin_token)
+    agg_result = fetch(f"{BASE}/aggregator/aggregate/{ELECTION_ID}", "POST", token=admin_token,
+                       timeout=AGG_TIMEOUT, retries=5)
     agg_time = time.time() - t_agg
 
     if "data" not in agg_result:
@@ -364,22 +480,23 @@ def main():
 
     # Performance summary
     print(f"\n  {Colors.PURPLE}Performance Summary:{Colors.RESET}")
-    print(f"    Encryption + DB Insert : {Colors.WHITE}{fmt_time(enc_time)}{Colors.RESET}  ({fmt_num(NUM_VOTERS/enc_time)}/s)")
-    print(f"    Aux Product            : {Colors.WHITE}{fmt_time(time.time()-t_agg-agg_time+enc_time if False else 0):>0s}{Colors.RESET}", end="")
+    if enc_time > 0:
+        print(f"    Encryption + DB Insert : {Colors.WHITE}{fmt_time(enc_time)}{Colors.RESET}  ({fmt_num(NUM_VOTERS/enc_time)}/s)")
+    else:
+        print(f"    Encryption + DB Insert : {Colors.WHITE}skipped (resume mode){Colors.RESET}")
+    print(f"    Aux Product            : {Colors.WHITE}{fmt_time(aux_time)}{Colors.RESET}")
     print(f"    Aggregation (decrypt)  : {Colors.WHITE}{fmt_time(agg_time)}{Colors.RESET}")
     print(f"    Total test time        : {Colors.WHITE}{fmt_time(total_time)}{Colors.RESET}")
-    print(f"    Data written to DB     : {Colors.WHITE}{fmt_bytes(db_bytes)}{Colors.RESET}")
+    if db_bytes > 0:
+        print(f"    Data written to DB     : {Colors.WHITE}{fmt_bytes(db_bytes)}{Colors.RESET}")
     print(f"    Crypto                 : {Colors.WHITE}N={N.bit_length()}bit{Colors.RESET} odd={N%2==1} skA≠H={skAhex!=Hhex}")
     print(f"    Native module          : {Colors.WHITE}libtommath (C){Colors.RESET}")
     print()
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # STEP 6: Dump results to file
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    t_report = time.time()
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # STEP 6: Detailed results dump
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    t_report = time.time()
     per_candidate = []
     for i in range(NUM_CANDIDATES):
         name = candidate_names[i] if i < len(candidate_names) else f"Candidate {i+1}"
@@ -400,6 +517,7 @@ def main():
         "description": "Paillier homomorphic encryption aggregation with libtommath native C module",
         "timestamp": datetime.now().isoformat(),
         "verdict": "PASS — All votes correctly aggregated" if all_correct else "FAIL — Vote count mismatch",
+        "resume_mode": RESUME,
 
         "scale": {
             "total_voters": NUM_VOTERS,
@@ -443,7 +561,7 @@ def main():
             "total_test_time_s": round(total_time, 3),
             "db_bytes_written": db_bytes,
             "db_mb_written": round(db_bytes / 1024 / 1024, 2),
-            "avg_bytes_per_voter": round(db_bytes / NUM_VOTERS, 1) if NUM_VOTERS > 0 else 0,
+            "avg_bytes_per_voter": round(db_bytes / NUM_VOTERS, 1) if NUM_VOTERS > 0 and db_bytes > 0 else 0,
         },
 
         "infrastructure": {
@@ -455,7 +573,7 @@ def main():
 
         "timing_breakdown": {
             "db_reset_s": round(t_reset, 3),
-            "param_verification_s": round(time.time() - t_params_start, 3),
+            "param_verification_s": round(time.time() - t_params_start, 3) if not RESUME else 0,
             "election_creation_s": round(t_election, 3),
             "encryption_insert_s": round(enc_time, 3),
             "aux_product_s": round(aux_time, 3),
@@ -474,6 +592,7 @@ def main():
 
 **Date:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 **Verdict:** {results["verdict"]}
+**Mode:** {"RESUME (aggregation only)" if RESUME else "Full end-to-end"}
 
 ## Scale
 - Total Voters: {fmt_num(NUM_VOTERS)}
